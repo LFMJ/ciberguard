@@ -14,7 +14,7 @@ def groups_for(user):
 
     incidents = []
     if role == "seguridad":
-        incidents.append(("incidents.manage", "Gestión de incidentes", "inbox", INCIDENTS_DETAIL))
+        incidents.append(("incidents.manage", "Gestión", "inbox", INCIDENTS_DETAIL))
     elif role == "admin":
         incidents.append(("incidents.manage", "Incidentes", "inbox", INCIDENTS_DETAIL))
     incidents.append(("incidents.report", "Reportar incidente", "plus", () if staff else INCIDENTS_DETAIL))

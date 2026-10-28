@@ -116,6 +116,9 @@ def compute():
         "maturity_level": content.maturity_level(maturity) if maturity is not None else None,
         "assessment": a,
         "plan": content.action_plan(a.answers)[:3] if a else [],
+        # Lo primero que hay que mirar: vencidos, luego por severidad y antigüedad.
+        "attention": sorted(open_, key=lambda i: (i.sla_state(now) != "vencido", -WEIGHTS.get(i.severity, 5),
+                                                  i.created_at))[:3],
         "open": len(open_),
         "overdue": len(overdue),
         "total": len(incidents),

@@ -53,3 +53,15 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   window.matchMedia("(max-width: 960px)").addEventListener("change", (m) => { if (!m.matches) close(false); });
 });
+
+// Selector de archivos en español: muestra los nombres elegidos.
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll("[data-filepick]").forEach((input) => {
+    const box = input.closest(".filepick"), text = box.querySelector("[data-filepick-text]"), original = text.textContent;
+    input.addEventListener("change", () => {
+      const names = [...input.files].map((f) => f.name);
+      text.textContent = names.length ? names.length + " archivo(s): " + names.join(", ") : original;
+      box.classList.toggle("has-files", names.length > 0);
+    });
+  });
+});

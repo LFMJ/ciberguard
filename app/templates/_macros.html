@@ -1,3 +1,10 @@
+{% macro filepick(id, label) %}
+<div class="filepick">
+  <input id="{{ id }}" name="evidence" type="file" accept="image/png,image/jpeg,application/pdf" multiple aria-describedby="{{ id }}-h" data-filepick>
+  <label for="{{ id }}"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+    <span data-filepick-text>{{ label }}</span></label>
+</div>
+{% endmacro %}
 {% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}
 {% macro options(labels, selected, blank=None) %}
 {% if blank %}<option value="">{{ blank }}</option>{% endif %}

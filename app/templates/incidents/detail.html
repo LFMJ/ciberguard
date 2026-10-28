@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, options, badges, sla, pdata with context %}
+{% from "_macros.html" import csrf, options, badges, sla, pdata, filepick with context %}
 {% block title %}Incidente #{{ inc.id }}{% endblock %}
 {% macro guide_body() %}
   <h4>Haz esto ahora</h4>
@@ -60,9 +60,8 @@
   {% if can_upload %}
   <form method="post" action="{{ url_for('incidents.add_evidence', incident_id=inc.id) }}" enctype="multipart/form-data" class="upload">
     {{ csrf() }}
-    <label class="f" for="evidence">Adjuntar evidencia</label>
-    <input id="evidence" name="evidence" type="file" accept="image/png,image/jpeg,application/pdf" multiple aria-describedby="eh">
-    <p class="hint" id="eh">PNG, JPG o PDF · máximo 2 MB cada uno · {{ max_files - inc.attachments|length }} restante(s).</p>
+    {{ filepick('evidence', 'Adjuntar más evidencia') }}
+    <p class="hint" id="evidence-h">PNG, JPG o PDF · máximo 2 MB cada uno · {{ max_files - inc.attachments|length }} restante(s).</p>
     <button class="btn ghost" type="submit">Subir</button>
   </form>
   {% endif %}
