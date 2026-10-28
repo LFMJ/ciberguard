@@ -8,7 +8,7 @@ from flask_login import current_user
 
 from config import Config
 from .extensions import csrf, db, login_manager
-from .models import ROLES, SEVERITIES, STATES, TYPES, User
+from .models import PERSONAL_DATA, ROLES, SEVERITIES, SLA_HOURS, STATES, TYPES, User, utcnow
 
 
 def create_app(config_class=Config):
@@ -21,11 +21,15 @@ def create_app(config_class=Config):
     csrf.init_app(app)
 
     from .admin import bp as admin_bp
+    from .assessment import bp as assessment_bp
     from .auth import bp as auth_bp
     from .incidents import bp as incidents_bp
+    from .training import bp as training_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(incidents_bp)
+    app.register_blueprint(assessment_bp)
+    app.register_blueprint(training_bp)
     app.register_blueprint(admin_bp, url_prefix="/admin")
 
     _register_template_helpers(app)
@@ -34,6 +38,9 @@ def create_app(config_class=Config):
     _register_cli(app)
 
     with app.app_context():
+        from . import schema
+
+        schema.upgrade()
         db.create_all()
     return app
 
@@ -64,7 +71,20 @@ def _register_template_helpers(app):
 
     @app.context_processor
     def labels():
-        return {"TYPES": TYPES, "STATES": STATES, "SEVERITIES": SEVERITIES, "ROLES": ROLES}
+        return {"TYPES": TYPES, "STATES": STATES, "SEVERITIES": SEVERITIES, "ROLES": ROLES,
+                "PERSONAL_DATA": PERSONAL_DATA, "SLA_HOURS": SLA_HOURS}
+
+    app.jinja_env.globals["now_utc"] = utcnow
+
+    @app.template_filter("fecha_corta")
+    def fecha_corta(value):
+        return value.strftime("%d/%m/%Y") if value else "—"
+
+    @app.template_filter("horas")
+    def horas(td):
+        """Duración legible: «3 h», «2 días»."""
+        h = abs(td.total_seconds()) / 3600
+        return f"{round(h)} h" if h < 48 else f"{round(h / 24)} días"
 
 
 def _register_hooks(app):
@@ -109,6 +129,10 @@ def _register_errors(app):
     @app.errorhandler(404)
     def not_found(_e):
         return render_template("error.html", code=404, msg="La página que buscas no existe."), 404
+
+    @app.errorhandler(413)
+    def too_large(_e):
+        return render_template("error.html", code=413, msg="Los archivos son demasiado grandes. Máximo 2 MB por archivo."), 413
 
     @app.errorhandler(400)
     def bad_request(_e):

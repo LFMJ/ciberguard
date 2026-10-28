@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, options with context %}
+{% from "_macros.html" import csrf, options, pdata with context %}
 {% block title %}Reportar incidente{% endblock %}
 {% block content %}
 <h2>Reportar un incidente</h2>
-<form class="card" method="post" novalidate>
+<form class="card" method="post" enctype="multipart/form-data" novalidate>
   {{ csrf() }}
   <label class="f" for="type">Tipo de incidente</label>
   <select id="type" name="type">{{ options(TYPES, form.type) }}</select>
@@ -12,6 +12,12 @@
   <label class="f" for="description">¿Qué pasó?</label>
   <textarea id="description" name="description" maxlength="5000" aria-describedby="h" required>{{ form.description }}</textarea>
   <p class="hint" id="h">No pegues contraseñas. Cuenta quién lo envió, qué pedía y si hiciste clic en algo.</p>
+  <label class="f" for="personal_data">¿Se pudieron exponer datos personales de clientes o empleados?</label>
+  <select id="personal_data" name="personal_data" aria-describedby="pdh">{{ options(PERSONAL_DATA, form.personal_data) }}</select>
+  <p class="hint" id="pdh">Por ejemplo: cédulas, teléfonos, direcciones, nómina o historias clínicas.</p>
+  <label class="f" for="evidence">Evidencia (opcional)</label>
+  <input id="evidence" name="evidence" type="file" accept="image/png,image/jpeg,application/pdf" multiple aria-describedby="eh">
+  <p class="hint" id="eh">Capturas de pantalla (PNG o JPG) o PDF, máximo 2 MB cada uno y 5 en total.</p>
   <button class="btn" type="submit">Enviar reporte</button>
 </form>
 <h2>Mis reportes</h2>
@@ -19,7 +25,7 @@
 <article class="card inc">
   <h3><a href="{{ url_for('incidents.detail', incident_id=i.id) }}">#{{ i.id }} · {{ i.title }}</a></h3>
   <div class="meta">{{ TYPES[i.type] }} · {{ i.created_at|fecha }}</div>
-  <span class="b {{ i.status }}">{{ STATES[i.status] }}</span>
+  <span class="b {{ i.status }}">{{ STATES[i.status] }}</span>{{ pdata(i) }}
   {% if i.notes %}<p>Respuesta de seguridad: {{ i.notes }}</p>{% endif %}
 </article>
 {% else %}

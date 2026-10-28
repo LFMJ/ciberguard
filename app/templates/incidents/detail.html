@@ -1,20 +1,72 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, options, badges with context %}
+{% from "_macros.html" import csrf, options, badges, sla, pdata with context %}
 {% block title %}Incidente #{{ inc.id }}{% endblock %}
+{% macro guide_body() %}
+  <h4>Haz esto ahora</h4>
+  <ol>{% for s in guide.now %}<li>{{ s }}</li>{% endfor %}</ol>
+  <h4>Evita</h4>
+  <ul>{% for s in guide.dont %}<li>{{ s }}</li>{% endfor %}</ul>
+{% endmacro %}
 {% block content %}
 <p><a href="{{ url_for('incidents.manage') if current_user.role in ('seguridad','admin') else url_for('incidents.report') }}">← Volver</a></p>
+
+{% if guide and inc.reporter_id == current_user.id %}
+  {% if is_new %}
+  <section class="card guide" aria-labelledby="gt"><h2 id="gt">Qué hacer ahora: {{ TYPES[inc.type]|lower }}</h2>{{ guide_body() }}</section>
+  {% elif inc.is_open %}
+  <details class="card guide"><summary>Ver qué hacer mientras seguridad revisa tu reporte</summary>{{ guide_body() }}</details>
+  {% endif %}
+{% endif %}
+
+{% if sic and current_user.role in ('seguridad','admin') and inc.needs_sic_report %}
+<section class="card legal {{ 'over' if sic.overdue }}" role="note">
+  <h3 class="mt0">🔒 Posible incidente con datos personales (Ley 1581 de 2012)</h3>
+  <p>La SIC indica reportar en el Registro Nacional de Bases de Datos (RNBD) los incidentes que afecten datos personales dentro de los <b>15 días hábiles</b> siguientes a su detección.</p>
+  <p><b>Fecha límite de referencia: {{ sic.due|fecha_corta }}</b> —
+    {% if sic.overdue %}vencida hace {{ -sic.left }} día(s) hábil(es).{% else %}quedan {{ sic.left }} día(s) hábil(es) (sin descontar festivos).{% endif %}</p>
+  <p class="hint">Confirmen el procedimiento vigente con su asesor legal. Cuando lo reporten, registren la fecha abajo.</p>
+</section>
+{% endif %}
+
 <article class="card inc">
   <h2>#{{ inc.id }} · {{ inc.title }}</h2>
   <div class="meta">{{ TYPES[inc.type] }} · Reportó {{ inc.reporter.full_name }} · {{ inc.created_at|fecha }}</div>
-  {{ badges(inc) }}
+  {{ badges(inc) }}{% if current_user.role in ('seguridad','admin') %}{{ sla(inc) }}{% endif %}{{ pdata(inc) }}
   <dl class="facts">
     <dt>Asignado a</dt><dd>{{ inc.assigned_to.full_name if inc.assigned_to else 'Sin asignar' }}</dd>
+    {% if current_user.role in ('seguridad','admin') %}
+    <dt>Plazo de atención</dt><dd>{{ SLA_HOURS[inc.severity] }} h (severidad {{ SEVERITIES[inc.severity]|lower }}) · vence {{ inc.sla_due|fecha }}</dd>
+    <dt>Primera atención</dt><dd>{{ inc.first_response_at|fecha }}</dd>
+    <dt>Datos personales</dt><dd>{{ PERSONAL_DATA[inc.personal_data] }}{% if inc.sic_reported_at %} · reportado a la SIC el {{ inc.sic_reported_at|fecha_corta }}{% endif %}</dd>
+    {% endif %}
     <dt>Última actualización</dt><dd>{{ inc.updated_at|fecha }}</dd>
     <dt>Cerrado</dt><dd>{{ inc.resolved_at|fecha }}</dd>
   </dl>
   <h3>Descripción</h3>
   <p class="pre">{{ inc.description }}</p>
+
+  <h3>Evidencia</h3>
+  {% if inc.attachments %}
+  <ul class="files">
+    {% for a in inc.attachments %}
+    <li>{% if a.is_image %}<a href="{{ url_for('incidents.attachment', attachment_id=a.id) }}" target="_blank" rel="noopener"><img src="{{ url_for('incidents.attachment', attachment_id=a.id) }}" alt="Evidencia: {{ a.original_name }}" loading="lazy"></a>{% endif %}
+      <a href="{{ url_for('incidents.attachment', attachment_id=a.id) }}">{{ a.original_name }}</a>
+      <span class="hint">{{ (a.size / 1024)|round|int }} KB · {{ a.uploader.full_name }} · {{ a.created_at|fecha }}</span></li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="hint">Sin archivos adjuntos.</p>{% endif %}
+  {% if can_upload %}
+  <form method="post" action="{{ url_for('incidents.add_evidence', incident_id=inc.id) }}" enctype="multipart/form-data" class="upload">
+    {{ csrf() }}
+    <label class="f" for="evidence">Adjuntar evidencia</label>
+    <input id="evidence" name="evidence" type="file" accept="image/png,image/jpeg,application/pdf" multiple aria-describedby="eh">
+    <p class="hint" id="eh">PNG, JPG o PDF · máximo 2 MB cada uno · {{ max_files - inc.attachments|length }} restante(s).</p>
+    <button class="btn ghost" type="submit">Subir</button>
+  </form>
+  {% endif %}
+
   {% if can_edit %}
+    <h3>Gestión</h3>
     {% set i = inc %}{% include "incidents/_edit_form.html" %}
   {% elif inc.notes %}
     <h3>Respuesta de seguridad</h3><p class="pre">{{ inc.notes }}</p>

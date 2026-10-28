@@ -14,6 +14,7 @@
   {% if current_user.is_authenticated %}
   <div class="who">
     <span><b>{{ current_user.full_name }}</b> · {{ current_user.role_name }}</span>
+    <a href="{{ url_for('auth.security_settings') }}">Seguridad de la cuenta</a>
     <a href="{{ url_for('auth.change_password') }}">Cambiar contraseña</a>
     <form method="post" action="{{ url_for('auth.logout') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -27,7 +28,8 @@
 {% set items = [] %}
 {% if my_role == 'seguridad' %}{% set items = items + [('incidents.manage','Gestión de incidentes'),('incidents.dashboard','Panel de riesgo')] %}{% endif %}
 {% if my_role == 'admin' %}{% set items = items + [('incidents.dashboard','Panel de riesgo'),('incidents.manage','Incidentes')] %}{% endif %}
-{% set items = items + [('incidents.report','Reportar incidente')] %}
+{% if my_role in ('seguridad','admin') %}{% set items = items + [('assessment.overview','Autoevaluación'),('incidents.monthly_report','Reporte mensual')] %}{% endif %}
+{% set items = items + [('incidents.report','Reportar incidente'),('training.quiz','Capacitación')] %}
 {% if my_role == 'admin' %}{% set items = items + [('admin.users','Usuarios'),('admin.audit_log','Auditoría')] %}{% endif %}
 <nav aria-label="Secciones">
   {% for ep, label in items %}
@@ -41,6 +43,10 @@
     {% for cat, m in msgs %}<p class="flash {{ cat }}">{{ m }}</p>{% endfor %}
   </div>{% endif %}
   {% endwith %}
+  {% if current_user.is_authenticated and current_user.role in ('admin','seguridad') and not current_user.totp_enabled
+        and request.endpoint not in ('auth.security_settings','auth.change_password') %}
+  <p class="flash warn">Tu cuenta tiene permisos amplios. <a href="{{ url_for('auth.security_settings') }}">Activa la verificación en dos pasos</a> para protegerla.</p>
+  {% endif %}
   {% block content %}{% endblock %}
 </main>
 </body>

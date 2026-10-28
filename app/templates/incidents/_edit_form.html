@@ -10,6 +10,12 @@
       {% for a in analysts %}<option value="{{ a.id }}"{% if a.id == i.assigned_to_id %} selected{% endif %}>{{ a.full_name }}</option>{% endfor %}
     </select></div>
   </div>
+  <div class="g3">
+    <div><label class="f" for="p{{ i.id }}">¿Datos personales?</label><select id="p{{ i.id }}" name="personal_data">{{ options(PERSONAL_DATA, i.personal_data) }}</select></div>
+    {% if i.personal_data == 'si' %}
+    <div><label class="f" for="r{{ i.id }}">Reportado a la SIC el</label><input id="r{{ i.id }}" name="sic_reported_at" type="date" value="{{ i.sic_reported_at.isoformat() if i.sic_reported_at else '' }}"></div>
+    {% endif %}
+  </div>
   <label class="f" for="n{{ i.id }}">Notas / acciones tomadas</label>
   <textarea id="n{{ i.id }}" name="notes" maxlength="5000" aria-describedby="nh{{ i.id }}">{{ i.notes }}</textarea>
   <p class="hint" id="nh{{ i.id }}">El empleado que reportó verá estas notas.</p>

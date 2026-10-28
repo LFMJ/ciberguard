@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, options, badges, pager with context %}
+{% from "_macros.html" import csrf, options, badges, pager, sla, pdata with context %}
 {% block title %}Incidentes{% endblock %}
 {% block content %}
 <h2>{{ 'Gestión de incidentes' if can_edit else 'Incidentes' }}</h2>
@@ -8,6 +8,8 @@
   <div><label class="f" for="fs">Estado</label><select id="fs" name="status">{{ options(STATES, f.status, 'Todos') }}</select></div>
   <div><label class="f" for="fv">Severidad</label><select id="fv" name="severity">{{ options(SEVERITIES, f.severity, 'Todas') }}</select></div>
   <div><label class="f" for="ft">Tipo</label><select id="ft" name="type">{{ options(TYPES, f.type, 'Todos') }}</select></div>
+  <div><label class="f" for="fsla">Tiempo de atención</label><select id="fsla" name="sla"><option value="">Todos</option><option value="vencido"{% if f.sla == 'vencido' %} selected{% endif %}>Vencidos</option></select></div>
+  <div><label class="f" for="fd">Datos personales</label><select id="fd" name="datos"><option value="">Todos</option><option value="si"{% if f.datos == 'si' %} selected{% endif %}>Solo con datos personales</option></select></div>
   <div><label class="f" for="fq">Buscar</label><input id="fq" name="q" value="{{ f.q }}" placeholder="Texto en título o descripción"></div>
   <div class="actions">
     <button class="btn" type="submit">Filtrar</button>
@@ -19,7 +21,7 @@
 <article class="card inc">
   <h3><a href="{{ url_for('incidents.detail', incident_id=i.id) }}">#{{ i.id }} · {{ i.title }}</a></h3>
   <div class="meta">{{ TYPES[i.type] }} · Reportó {{ i.reporter.full_name }} · {{ i.created_at|fecha }}{% if i.assigned_to %} · Asignado a {{ i.assigned_to.full_name }}{% endif %}</div>
-  {{ badges(i) }}
+  {{ badges(i) }}{{ sla(i) }}{{ pdata(i) }}{% if i.attachments %}<span class="b descartado">📎 {{ i.attachments|length }}</span>{% endif %}
   <p class="pre">{{ i.description }}</p>
   {% if can_edit %}{% include "incidents/_edit_form.html" %}
   {% elif i.notes %}<p><b>Notas de seguridad:</b> {{ i.notes }}</p>{% endif %}

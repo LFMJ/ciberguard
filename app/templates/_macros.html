@@ -16,3 +16,11 @@
 </nav>
 {% endif %}
 {% endmacro %}
+{% macro sla(i) %}
+{% set st = i.sla_state() %}
+{% if st == 'vencido' %}<span class="b alta">⏱ Sin atender hace {{ (now_utc() - i.sla_due)|horas }}</span>
+{% elif st == 'en_plazo' %}<span class="b media">⏱ Atender antes de {{ (i.sla_due - now_utc())|horas }}</span>
+{% elif st == 'incumplido' %}<span class="b descartado">Atendido fuera de plazo</span>
+{% endif %}
+{% endmacro %}
+{% macro pdata(i) %}{% if i.personal_data == 'si' %}<span class="b dp">🔒 Datos personales{% if i.sic_reported_at %} · reportado a la SIC{% endif %}</span>{% endif %}{% endmacro %}

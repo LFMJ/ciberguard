@@ -121,6 +121,15 @@ def edit_user(user_id):
                 audit("contrasena_restablecida", user.username)
                 db.session.commit()
 
+        elif action == "reset_2fa":
+            if is_self:
+                flash("Para tu propia cuenta usa «Seguridad de la cuenta».", "err")
+            else:
+                user.totp_secret, user.totp_enabled, user.totp_last_step = None, False, None
+                audit("2fa_restablecido", f"{user.username}: se quitó la verificación en dos pasos")
+                db.session.commit()
+                flash("Se quitó la verificación en dos pasos. El usuario podrá activarla de nuevo.", "ok")
+
         elif action == "unlock":
             user.failed_logins = 0
             user.locked_until = None

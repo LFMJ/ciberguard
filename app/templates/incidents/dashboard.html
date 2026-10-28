@@ -23,14 +23,64 @@
   </svg>
   <div class="lvl {{ r.level }}">{{ r.title }}</div>
   <p>{{ r.message }}</p>
+  <div class="parts">
+    <div><b>{{ r.incident_score }}</b><span>Riesgo por incidentes</span></div>
+    {% if r.maturity is not none %}
+    <div><b>{{ r.maturity }}</b><span>Madurez en seguridad<br><a href="{{ url_for('assessment.overview') }}">Ver autoevaluación</a></span></div>
+    {% else %}
+    <div><b>—</b><span>Madurez sin evaluar<br><a href="{{ url_for('assessment.new') }}">Hacer la autoevaluación</a></span></div>
+    {% endif %}
+  </div>
 </section>
-<div class="kpis">
+
+<div class="kpis six">
   <div class="kpi"><b>{{ r.open }}</b>Incidentes abiertos</div>
-  <div class="kpi"><b>{{ r.stale }}</b>Sin atender (+48 h)</div>
-  <div class="kpi"><b>{{ r.total }}</b>Reportes totales</div>
+  <div class="kpi{{ ' alert' if r.overdue }}"><b>{{ r.overdue }}</b><a href="{{ url_for('incidents.manage', sla='vencido') }}">Fuera del tiempo de atención</a></div>
+  <div class="kpi"><b>{{ '%d %%'|format(r.sla.pct) if r.sla.pct is not none else '—' }}</b>Atendidos a tiempo</div>
   <div class="kpi"><b>{{ '%d h'|format(r.avg_hours) if r.avg_hours is not none else '—' }}</b>Tiempo medio de solución</div>
+  <div class="kpi"><b>{{ r.training.coverage }} %</b><a href="{{ url_for('training.team') }}">Equipo capacitado (90 días)</a></div>
+  <div class="kpi{{ ' alert' if r.sic_pending }}"><b>{{ r.sic_pending }}</b><a href="{{ url_for('incidents.manage', datos='si') }}">Con datos personales sin reportar a la SIC</a></div>
 </div>
+
+{% set pts = r.trend %}{% set n = pts|length %}
+{% set W, H, X0, Y0, PH = 640, 230, 44, 16, 170 %}
+<section class="card">
+  <h3 class="mt0">Evolución del riesgo por incidentes</h3>
+  <p class="hint">Puntaje al cierre de cada una de las últimas {{ n }} semanas. Desde 25 el riesgo es medio y desde 60, alto.</p>
+  <svg class="trend" viewBox="0 0 {{ W }} {{ H }}" role="img" aria-label="Evolución semanal del riesgo por incidentes; detalle en la tabla siguiente">
+    {% for g in (0, 25, 60, 100) %}{% set gy = Y0 + (100 - g) / 100 * PH %}
+    <line x1="{{ X0 }}" x2="{{ W - 12 }}" y1="{{ gy }}" y2="{{ gy }}" class="grid{{ ' base' if g == 0 }}"/>
+    <text x="{{ X0 - 8 }}" y="{{ gy + 4 }}" text-anchor="end" class="axis">{{ g }}</text>
+    {% endfor %}
+    {% set step = (W - X0 - 40) / (n - 1) %}
+    <polyline class="line" points="{% for p in pts %}{{ X0 + 14 + loop.index0 * step }},{{ Y0 + (100 - p.score) / 100 * PH }} {% endfor %}"/>
+    {% for p in pts %}{% set cx = X0 + 14 + loop.index0 * step %}{% set cy = Y0 + (100 - p.score) / 100 * PH %}
+    <g class="pt" tabindex="0">
+      <title>Semana al {{ p.t|fecha_corta }}: {{ p.score }} de 100</title>
+      <circle cx="{{ cx }}" cy="{{ cy }}" r="16" class="hit"/>
+      <circle cx="{{ cx }}" cy="{{ cy }}" r="5" class="dot"/>
+      {% if loop.last %}<text x="{{ cx }}" y="{{ cy - 12 }}" text-anchor="middle" class="val">{{ p.score }}</text>{% endif %}
+      <text x="{{ cx }}" y="{{ H - 8 }}" text-anchor="middle" class="axis">{{ p.t.strftime('%d/%m') }}</text>
+    </g>
+    {% endfor %}
+  </svg>
+  <details><summary>Ver como tabla</summary>
+    <table><thead><tr><th>Semana al</th><th>Riesgo por incidentes</th></tr></thead>
+    <tbody>{% for p in pts %}<tr><td>{{ p.t|fecha_corta }}</td><td>{{ p.score }}</td></tr>{% endfor %}</tbody></table>
+  </details>
+</section>
+
+{% if r.plan %}
+<section class="card">
+  <h3 class="mt0">Próximas acciones recomendadas</h3>
+  <ol class="plan">{% for p in r.plan %}<li><b>{{ p.action }}</b><span class="hint"> {{ p.area }} · {{ p.cis }} · esfuerzo {{ p.effort|lower }}</span></li>{% endfor %}</ol>
+  <p><a href="{{ url_for('assessment.overview') }}">Ver el plan completo</a></p>
+</section>
+{% endif %}
+
 {{ bars('Incidentes por estado', r.by_status) }}
 {{ bars('Incidentes por tipo', r.by_type) }}
-<p class="note">Puntaje = (alta×10 + media×5 + baja×2 de los abiertos + 5 por cada uno sin atender &gt;48 h) × 3, máximo 100.</p>
+<p class="note">Riesgo por incidentes = (alta×10 + media×5 + baja×2 de los abiertos + 5 por cada uno sin atender dentro del plazo) × 3, máx. 100.
+  Plazos de atención: alta {{ sla_hours.alta }} h, media {{ sla_hours.media }} h, baja {{ sla_hours.baja }} h.
+  {% if r.maturity is not none %}Riesgo global = 60 % riesgo por incidentes + 40 % (100 − madurez).{% endif %}</p>
 {% endblock %}

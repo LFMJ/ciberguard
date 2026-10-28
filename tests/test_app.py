@@ -4,7 +4,11 @@ import pytest
 
 from app import create_app
 from app.extensions import db
-from app.models import AuditLog, Incident, User
+import io
+import time
+
+from app import totp
+from app.models import AuditLog, Attachment, Incident, QuizAttempt, User, utcnow
 from app.seed import DEMO_PASSWORD, seed
 from config import TestConfig
 
@@ -84,7 +88,7 @@ def test_report_validation(client):
     login(client, "laura")
     r = client.post("/reportar", data={"type": "phishing", "title": "abc", "description": "corto"})
     assert r.status_code == 400
-    assert Incident.query.count() == 3
+    assert Incident.query.count() == 5
 
 
 def test_security_updates_incident_and_audits(client):
@@ -145,8 +149,10 @@ def test_deactivated_user_cannot_login(client):
 def test_dashboard_score(client):
     login(client, "sofia")
     page = client.get("/panel").get_data(as_text=True)
-    # Abiertos: alta (10) + media (5); uno "reportado" con 3 días (+5) → (20)×3 = 60 → alto
-    assert 'data-score="60"' in page and "Riesgo alto" in page
+    # Incidentes: alta (10) + media (5) abiertos; el alta lleva 3 días sin atención (+5) → 20×3 = 60.
+    # Madurez de la demo = 63 → global = 0.6×60 + 0.4×(100−63) = 51 → medio
+    assert "<b>60</b><span>Riesgo por incidentes" in page
+    assert 'data-score="51"' in page and "Riesgo medio" in page
 
 
 def test_csv_export_escapes_formulas(client):
@@ -172,3 +178,168 @@ def test_csrf_enforced_when_enabled():
     with app.app_context():
         seed()
         assert app.test_client().post("/login", data={"username": "ana", "password": DEMO_PASSWORD}).status_code == 400
+
+
+# --- Mejoras para pymes ---------------------------------------------------
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 100
+
+
+def test_report_shows_guide_and_saves_evidence(client):
+    login(client, "laura")
+    r = client.post("/reportar", data={
+        "type": "malware", "title": "Abrí un adjunto raro", "description": "Se abrió una ventana negra y se cerró.",
+        "personal_data": "no", "evidence": [(io.BytesIO(PNG), "captura.png"), (io.BytesIO(b"MZ fake exe"), "virus.png")],
+    }, content_type="multipart/form-data")
+    assert "nuevo=1" in r.headers["Location"]
+    page = client.get(r.headers["Location"]).get_data(as_text=True)
+    assert "Qué hacer ahora" in page and "Desconecta el equipo de la red" in page
+    inc = Incident.query.filter_by(title="Abrí un adjunto raro").one()
+    assert len(inc.attachments) == 1  # el ejecutable disfrazado se rechaza por su contenido
+    att = inc.attachments[0]
+    assert client.get(f"/adjuntos/{att.id}").status_code == 200
+    client.post("/logout")
+    login(client, "carlos")  # otro empleado no puede ver la evidencia
+    assert client.get(f"/adjuntos/{att.id}").status_code == 404
+
+
+def test_sla_first_response_and_overdue_filter(client):
+    inc = Incident.query.filter_by(title="Correo falso del banco").one()
+    assert inc.sla_state() == "vencido"  # alta, 3 días sin atender (plazo 4 h)
+    login(client, "sofia")
+    page = client.get("/gestion?sla=vencido").get_data(as_text=True)
+    assert "Correo falso del banco" in page and "Adjunto .zip sospechoso" not in page
+    client.post(f"/gestion/{inc.id}", data={"status": "en_revision", "severity": "alta", "notes": "", "assigned_to_id": ""})
+    db.session.refresh(inc)
+    assert inc.first_response_at is not None and inc.sla_state() == "incumplido"
+
+
+def test_personal_data_sic_flow(client):
+    login(client, "carlos")
+    client.post("/reportar", data={"type": "acceso_indebido", "title": "Envié la base de clientes a quien no era",
+                                   "description": "Mandé el Excel de clientes a un correo equivocado.", "personal_data": "si"})
+    inc = Incident.query.filter_by(personal_data="si", sic_reported_at=None).one()
+    client.post("/logout")
+    login(client, "sofia")
+    page = client.get(f"/incidentes/{inc.id}").get_data(as_text=True)
+    assert "Ley 1581 de 2012" in page and "15 días hábiles" in page
+    client.post(f"/gestion/{inc.id}", data={"status": "en_revision", "severity": "alta", "notes": "x",
+                                           "personal_data": "si", "sic_reported_at": utcnow().date().isoformat()})
+    db.session.refresh(inc)
+    assert inc.sic_reported_at == utcnow().date() and not inc.needs_sic_report
+
+
+def test_business_days():
+    from datetime import date
+
+    from app.compliance import add_business_days
+    assert add_business_days(date(2026, 10, 30), 1) == date(2026, 11, 2)  # viernes + 1 hábil = lunes
+    assert add_business_days(date(2026, 10, 28), 15) == date(2026, 11, 18)
+
+
+def test_assessment_creates_plan(client):
+    login(client, "carlos")
+    assert client.get("/evaluacion").status_code == 403
+    client.post("/logout")
+    login(client, "ana")
+    from app.content import QUESTION_IDS
+    answers = dict.fromkeys(QUESTION_IDS, "si")
+    assert client.post("/evaluacion/nueva", data={**answers, "mfa": ""}).status_code == 400  # incompleta
+    answers["mfa"] = "no"
+    r = client.post("/evaluacion/nueva", data=answers)
+    assert r.status_code == 302
+    page = client.get("/evaluacion").get_data(as_text=True)
+    assert "Activa la verificación en dos pasos en el correo" in page
+    assert "<b>92</b>" in page  # 35 de 38 puntos de peso (la doble verificación pesa 3) → 92
+
+
+def test_quiz_scoring_and_team_view(client):
+    from app.content import QUIZ
+    login(client, "laura")
+    data = {q["id"]: str(q["answer"]) for q in QUIZ}
+    data[QUIZ[0]["id"]] = "0"
+    page = client.post("/capacitacion", data=data).get_data(as_text=True)
+    assert f"{len(QUIZ) - 1} de {len(QUIZ)}" in page
+    assert QuizAttempt.query.filter_by(user_id=User.query.filter_by(username="laura").one().id).count() == 1
+    assert client.get("/capacitacion/equipo").status_code == 403
+    client.post("/logout")
+    login(client, "sofia")
+    assert "Laura Gómez" in client.get("/capacitacion/equipo").get_data(as_text=True)
+
+
+def test_monthly_report(client):
+    login(client, "ana")
+    r = client.get("/reporte")
+    assert r.status_code == 200 and "Reporte de ciberseguridad" in r.get_data(as_text=True)
+    assert client.get("/reporte?mes=nada").status_code == 200
+
+
+def _enable_2fa(client, user):
+    client.post("/cuenta/seguridad", data={"action": "start"})
+    with client.session_transaction() as s:
+        secret = s["2fa_setup"]
+    client.post("/cuenta/seguridad", data={"action": "confirm", "code": totp.now_code(secret)})
+    db.session.refresh(user)
+    assert user.totp_enabled
+    return secret
+
+
+def test_two_factor_login(client):
+    sofia = User.query.filter_by(username="sofia").one()
+    login(client, "sofia")
+    secret = _enable_2fa(client, sofia)
+    client.post("/logout")
+
+    r = login(client, "sofia")
+    assert r.headers["Location"].endswith("/login/verificar")
+    assert client.get("/gestion").status_code == 302  # aún no ha iniciado sesión
+    assert client.post("/login/verificar", data={"code": "000000"}).status_code == 401
+    next_code = totp.now_code(secret, time.time() + 30)  # el código actual ya se usó al activar
+    r = client.post("/login/verificar", data={"code": next_code})
+    assert r.headers["Location"].endswith("/gestion")
+    assert client.get("/gestion").status_code == 200
+    # El mismo código no se puede reutilizar.
+    client.post("/logout")
+    login(client, "sofia")
+    assert client.post("/login/verificar", data={"code": next_code}).status_code == 401
+
+
+def test_admin_can_reset_2fa(client):
+    sofia = User.query.filter_by(username="sofia").one()
+    login(client, "sofia")
+    _enable_2fa(client, sofia)
+    client.post("/logout")
+    login(client, "ana")
+    client.post(f"/admin/usuarios/{sofia.id}", data={"action": "reset_2fa"})
+    db.session.refresh(sofia)
+    assert not sofia.totp_enabled
+
+
+def test_schema_upgrade_adds_columns(tmp_path):
+    import sqlite3
+
+    from config import TestConfig as T
+    path = tmp_path / "old.db"
+    con = sqlite3.connect(path)
+    con.executescript("""
+        CREATE TABLE users (id INTEGER PRIMARY KEY, username VARCHAR(64), full_name VARCHAR(120), email VARCHAR(120),
+          role VARCHAR(20), password_hash VARCHAR(255), is_active BOOLEAN, must_change_password BOOLEAN,
+          failed_logins INTEGER, locked_until DATETIME, last_login_at DATETIME, created_at DATETIME);
+        CREATE TABLE incidents (id INTEGER PRIMARY KEY, reporter_id INTEGER, type VARCHAR(30), title VARCHAR(150),
+          description TEXT, severity VARCHAR(10), status VARCHAR(20), notes TEXT, assigned_to_id INTEGER,
+          created_at DATETIME, updated_at DATETIME, resolved_at DATETIME);
+        INSERT INTO incidents VALUES (1, 1, 'otro', 'Viejo', 'desc', 'baja', 'resuelto', '', NULL,
+          '2026-01-01 00:00:00', '2026-01-02 00:00:00', '2026-01-02 00:00:00');
+    """)
+    con.commit()
+    con.close()
+
+    class Old(T):
+        SQLALCHEMY_DATABASE_URI = f"sqlite:///{path}"
+
+    app = create_app(Old)
+    with app.app_context():
+        inc = db.session.get(Incident, 1)
+        assert inc.personal_data == "no_se" and inc.first_response_at is not None
+        assert Attachment.query.count() == 0
+        db.session.remove()

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}Verificación en dos pasos{% endblock %}
+{% block mainclass %}narrow{% endblock %}
+{% block content %}
+<form class="card" method="post" autocomplete="off">
+  <h2>Verificación en dos pasos</h2>
+  <p>Abre tu aplicación de autenticación (Google Authenticator, Microsoft Authenticator…) y escribe el código de 6 dígitos de <b>CiberGuard</b>.</p>
+  {{ csrf() }}
+  <label class="f" for="code">Código</label>
+  <input id="code" name="code" inputmode="numeric" pattern="[0-9 ]{6,7}" maxlength="7" autocomplete="one-time-code" class="otp" required autofocus>
+  <button class="btn wide" type="submit">Verificar</button>
+  <p class="hint">¿Perdiste el celular? Pide al administrador que quite la verificación de tu cuenta. <a href="{{ url_for('auth.login') }}">Volver</a></p>
+</form>
+{% endblock %}

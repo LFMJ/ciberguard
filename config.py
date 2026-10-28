@@ -35,6 +35,8 @@ class Config:
     REMEMBER_COOKIE_SECURE = SESSION_COOKIE_SECURE
     PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
 
+    # 5 archivos de 2 MB + el formulario.
+    MAX_CONTENT_LENGTH = 11 * 1024 * 1024
     MAX_FAILED_LOGINS = 5
     LOCKOUT_MINUTES = 15
     TIMEZONE = "America/Bogota"

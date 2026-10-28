@@ -111,11 +111,11 @@ cd ~/ciberguard && git pull
 source .venv/bin/activate && pip install -r requirements.txt
 ```
 
-Luego pulsa **Reload** en la pestaña *Web*. Las tablas nuevas se crean solas al arrancar.
+Luego pulsa **Reload** en la pestaña *Web*. Las tablas y columnas nuevas se crean solas al arrancar, sin perder los datos existentes.
 
 ### 7. Respaldos
 
-Toda la información está en un solo archivo: `~/ciberguard/instance/ciberguard.db`. Para descargarlo, ve a la pestaña **Files** → `ciberguard/instance` → *download*. Para una copia rápida desde la consola:
+Toda la información está en el archivo `~/ciberguard/instance/ciberguard.db`, y la evidencia adjunta en la carpeta `~/ciberguard/instance/uploads/`. Respalda ambas. Para descargarlo, ve a la pestaña **Files** → `ciberguard/instance` → *download*. Para una copia rápida desde la consola:
 
 ```bash
 cp ~/ciberguard/instance/ciberguard.db ~/respaldo-$(date +%F).db

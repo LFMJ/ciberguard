@@ -13,3 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }));
   }
 });
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll("[data-print]").forEach((b) => b.addEventListener("click", () => window.print()));
+});
