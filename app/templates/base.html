@@ -7,35 +7,50 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </head>
-<body>
+<body class="{{ 'app' if nav_groups else 'plain' }}">
+{% from "_icons.html" import icon with context %}
 <a class="skip" href="#main">Saltar al contenido</a>
-<header>
-  <a class="brand" href="{{ url_for('index') }}">CiberGuard</a>
-  {% if current_user.is_authenticated %}
-  <div class="who">
-    <span><b>{{ current_user.full_name }}</b> · {{ current_user.role_name }}</span>
-    <a href="{{ url_for('auth.security_settings') }}">Seguridad de la cuenta</a>
-    <a href="{{ url_for('auth.change_password') }}">Cambiar contraseña</a>
-    <form method="post" action="{{ url_for('auth.logout') }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit" class="link">Cerrar sesión</button>
-    </form>
+{% if nav_groups %}
+<aside class="sidenav" id="menu" aria-label="Menú principal">
+  <div class="sidenav-top">
+    <a class="brand" href="{{ url_for('index') }}">{{ icon('shield') }}CiberGuard</a>
+    <a class="nav-close" href="#" data-nav-close aria-label="Cerrar menú">{{ icon('close') }}</a>
   </div>
+  <nav class="nav-groups">
+    {% for label, items in nav_groups %}
+    <p class="nav-label">{{ label }}</p>
+    <ul>
+      {% for item in items %}{% set ep, text, ico, _ = item %}
+      <li><a href="{{ url_for(ep) }}"{% if nav_active(item, request.endpoint) %} aria-current="page"{% endif %}>{{ icon(ico) }}<span>{{ text }}</span>
+        {% if ep == 'incidents.manage' and nav_pending %}<span class="count" title="Incidentes nuevos sin atender">{{ nav_pending }}<span class="sr"> nuevos</span></span>{% endif %}</a></li>
+      {% endfor %}
+    </ul>
+    {% endfor %}
+  </nav>
+  <div class="me">
+    <div class="avatar" aria-hidden="true">{{ current_user.full_name[:1] }}</div>
+    <div class="me-txt"><b>{{ current_user.full_name }}</b><span>{{ current_user.role_name }}</span></div>
+    <ul class="me-links">
+      <li><a href="{{ url_for('auth.security_settings') }}"{% if request.endpoint == 'auth.security_settings' %} aria-current="page"{% endif %}>{{ icon('shield') }}<span>Seguridad de la cuenta</span>{% if current_user.role in ('admin','seguridad') and not current_user.totp_enabled %}<span class="dot-warn" title="Verificación en dos pasos desactivada"></span>{% endif %}</a></li>
+      <li><a href="{{ url_for('auth.change_password') }}"{% if request.endpoint == 'auth.change_password' %} aria-current="page"{% endif %}>{{ icon('key') }}<span>Cambiar contraseña</span></a></li>
+      <li><form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">{{ icon('out') }}<span>Cerrar sesión</span></button></form></li>
+    </ul>
+  </div>
+</aside>
+<a class="backdrop" href="#" data-nav-close tabindex="-1" aria-hidden="true"></a>
+<header class="topbar">
+  <a class="menu-btn" href="#menu" aria-controls="menu" aria-expanded="false" data-nav-open>{{ icon('menu') }}<span class="sr">Abrir menú</span>
+    {% if nav_pending %}<span class="count">{{ nav_pending }}</span>{% endif %}</a>
+  <a class="brand" href="{{ url_for('index') }}">{{ icon('shield') }}CiberGuard</a>
+  {% if request.endpoint != 'incidents.report' %}<a class="btn-report" href="{{ url_for('incidents.report') }}">{{ icon('plus') }}<span>Reportar</span></a>{% endif %}
+</header>
+{% else %}
+<header class="plainbar">
+  <a class="brand" href="{{ url_for('index') }}">{{ icon('shield') }}CiberGuard</a>
+  {% if current_user.is_authenticated %}
+  <form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="link">Cerrar sesión</button></form>
   {% endif %}
 </header>
-{% if current_user.is_authenticated and not current_user.must_change_password %}
-{% set my_role = current_user.role %}
-{% set items = [] %}
-{% if my_role == 'seguridad' %}{% set items = items + [('incidents.manage','Gestión de incidentes'),('incidents.dashboard','Panel de riesgo')] %}{% endif %}
-{% if my_role == 'admin' %}{% set items = items + [('incidents.dashboard','Panel de riesgo'),('incidents.manage','Incidentes')] %}{% endif %}
-{% if my_role in ('seguridad','admin') %}{% set items = items + [('assessment.overview','Autoevaluación'),('incidents.monthly_report','Reporte mensual')] %}{% endif %}
-{% set items = items + [('incidents.report','Reportar incidente'),('training.quiz','Capacitación')] %}
-{% if my_role == 'admin' %}{% set items = items + [('admin.users','Usuarios'),('admin.audit_log','Auditoría')] %}{% endif %}
-<nav aria-label="Secciones">
-  {% for ep, label in items %}
-  <a href="{{ url_for(ep) }}"{% if request.endpoint == ep %} aria-current="page"{% endif %}>{{ label }}</a>
-  {% endfor %}
-</nav>
 {% endif %}
 <main id="main" class="{% block mainclass %}{% endblock %}">
   {% with msgs = get_flashed_messages(with_categories=true) %}

@@ -76,6 +76,15 @@ def _register_template_helpers(app):
 
     app.jinja_env.globals["now_utc"] = utcnow
 
+    @app.context_processor
+    def menu():
+        from . import navigation
+
+        if not current_user.is_authenticated or current_user.must_change_password:
+            return {"nav_groups": None}
+        return {"nav_groups": navigation.groups_for(current_user), "nav_active": navigation.is_active,
+                "nav_pending": navigation.pending_count(current_user)}
+
     @app.template_filter("fecha_corta")
     def fecha_corta(value):
         return value.strftime("%d/%m/%Y") if value else "—"
