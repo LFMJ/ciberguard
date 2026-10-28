@@ -4,7 +4,10 @@ La SIC indica reportar los incidentes que afecten datos personales en el Registr
 Bases de Datos (RNBD) dentro de los 15 días hábiles siguientes a su detección.
 Aquí se cuentan días hábiles de lunes a viernes; los festivos no se descuentan.
 """
-from datetime import date, timedelta
+from datetime import date, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+from flask import current_app
 
 from .models import utcnow
 
@@ -26,9 +29,15 @@ def business_days_between(start, end):
     return sum(1 for i in range(1, (end - start).days + 1) if (start + timedelta(days=i)).weekday() < 5)
 
 
+def local_date(utc_naive):
+    """Fecha calendario en la zona horaria de la empresa (las fechas se guardan en UTC sin zona)."""
+    tz = ZoneInfo(current_app.config["TIMEZONE"])
+    return utc_naive.replace(tzinfo=timezone.utc).astimezone(tz).date()
+
+
 def sic_status(incident, today=None):
-    today = today or utcnow().date()
-    due = add_business_days(incident.created_at.date(), SIC_BUSINESS_DAYS)
+    today = today or local_date(utcnow())
+    due = add_business_days(local_date(incident.created_at), SIC_BUSINESS_DAYS)
     return {"due": due, "left": business_days_between(today, due), "overdue": today > due}
 
 

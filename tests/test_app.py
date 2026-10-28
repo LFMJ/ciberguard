@@ -201,6 +201,13 @@ def test_report_shows_guide_and_saves_evidence(client):
     client.post("/logout")
     login(client, "carlos")  # otro empleado no puede ver la evidencia
     assert client.get(f"/adjuntos/{att.id}").status_code == 404
+    client.post("/logout")
+    login(client, "ana")  # la administración de cuentas tampoco
+    assert client.get(f"/adjuntos/{att.id}").status_code == 404
+    assert "solo los ven quien reportó" in client.get(f"/incidentes/{inc.id}").get_data(as_text=True)
+    client.post("/logout")
+    login(client, "sofia")
+    assert client.get(f"/adjuntos/{att.id}").status_code == 200
 
 
 def test_sla_first_response_and_overdue_filter(client):
@@ -227,6 +234,17 @@ def test_personal_data_sic_flow(client):
                                            "personal_data": "si", "sic_reported_at": utcnow().date().isoformat()})
     db.session.refresh(inc)
     assert inc.sic_reported_at == utcnow().date() and not inc.needs_sic_report
+
+
+def test_sic_deadline_uses_local_date(app):
+    from datetime import date, datetime
+
+    from app.compliance import sic_status
+    # Martes 27-oct-2026 a las 8 p. m. en Bogotá = miércoles 28-oct 01:00 UTC.
+    inc = Incident(created_at=datetime(2026, 10, 28, 1, 0))
+    st = sic_status(inc, today=date(2026, 10, 27))
+    assert st["due"] == date(2026, 11, 17)  # 15 hábiles desde el martes, no desde el miércoles
+    assert st["left"] == 15
 
 
 def test_business_days():

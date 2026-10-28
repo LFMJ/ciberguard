@@ -46,7 +46,9 @@
   <p class="pre">{{ inc.description }}</p>
 
   <h3>Evidencia</h3>
-  {% if inc.attachments %}
+  {% if not can_see_evidence %}
+  <p class="hint">{{ inc.attachments|length }} archivo(s) adjunto(s). Por protección de datos, solo los ven quien reportó y el encargado de seguridad.</p>
+  {% elif inc.attachments %}
   <ul class="files">
     {% for a in inc.attachments %}
     <li>{% if a.is_image %}<a href="{{ url_for('incidents.attachment', attachment_id=a.id) }}" target="_blank" rel="noopener"><img src="{{ url_for('incidents.attachment', attachment_id=a.id) }}" alt="Evidencia: {{ a.original_name }}" loading="lazy"></a>{% endif %}

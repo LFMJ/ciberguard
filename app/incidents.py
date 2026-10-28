@@ -65,12 +65,17 @@ def detail(incident_id):
         "incidents/detail.html", inc=inc, can_edit=can_edit, events=events,
         analysts=_analysts() if can_edit else [], guide=content.GUIDES.get(inc.type),
         is_new=request.args.get("nuevo") == "1", sic=compliance.sic_status(inc) if inc.personal_data == "si" else None,
-        can_upload=_can_upload(inc), max_files=uploads.MAX_PER_INCIDENT,
+        can_upload=_can_upload(inc), max_files=uploads.MAX_PER_INCIDENT, can_see_evidence=_can_see_evidence(inc),
     )
 
 
 def _can_see(inc):
     return current_user.role in STAFF or inc.reporter_id == current_user.id
+
+
+def _can_see_evidence(inc):
+    # La evidencia puede tener datos personales: solo quien reportó y seguridad (no la administración de cuentas).
+    return current_user.role == "seguridad" or inc.reporter_id == current_user.id
 
 
 def _can_upload(inc):
@@ -100,7 +105,7 @@ def add_evidence(incident_id):
 @login_required
 def attachment(attachment_id):
     att = db.get_or_404(Attachment, attachment_id)
-    if not _can_see(att.incident):
+    if not _can_see_evidence(att.incident):
         abort(404)
     path = os.path.join(uploads.upload_dir(), att.stored_name)
     if not os.path.exists(path):
