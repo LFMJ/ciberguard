@@ -75,6 +75,9 @@ def _register_template_helpers(app):
                 "PERSONAL_DATA": PERSONAL_DATA, "SLA_HOURS": SLA_HOURS}
 
     app.jinja_env.globals["now_utc"] = utcnow
+    # Versión de los archivos estáticos: cambia con cada despliegue y evita que el navegador use CSS/JS viejos.
+    static_files = [os.path.join(app.static_folder, f) for f in ("style.css", "app.js")]
+    app.jinja_env.globals["static_v"] = str(int(max(os.path.getmtime(f) for f in static_files if os.path.exists(f))))
 
     @app.context_processor
     def menu():

@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}CiberGuard{% endblock %} · CiberGuard</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-<script src="{{ url_for('static', filename='app.js') }}" defer></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=static_v) }}">
+<script src="{{ url_for('static', filename='app.js', v=static_v) }}" defer></script>
 </head>
 <body class="{{ 'app' if nav_groups else 'plain' }}">
 {% from "_icons.html" import icon with context %}
