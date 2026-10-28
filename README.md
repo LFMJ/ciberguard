@@ -86,3 +86,7 @@ tests/
 ```
 
 Despliegue: ver [DESPLIEGUE_PYTHONANYWHERE.md](DESPLIEGUE_PYTHONANYWHERE.md).
+
+## Documentos
+
+En [`docs/`](docs/): manual de usuario, documentación técnica y explicación del código (PDF).
