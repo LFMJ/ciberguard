@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "_macros.html" import pager with context %}
+{% block title %}Auditoría{% endblock %}
+{% block content %}
+<h2>Bitácora de auditoría</h2>
+<form class="card filters" method="get">
+  <div><label class="f" for="action">Acción</label><select id="action" name="action">
+    <option value="">Todas</option>
+    {% for a in actions %}<option value="{{ a }}"{% if a == action %} selected{% endif %}>{{ a.replace('_', ' ') }}</option>{% endfor %}
+  </select></div>
+  <div class="actions"><button class="btn" type="submit">Filtrar</button></div>
+</form>
+<div class="card tablewrap">
+<table>
+  <thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Detalle</th><th>IP</th></tr></thead>
+  <tbody>
+  {% for e in page.items %}
+  <tr><td class="nowrap">{{ e.created_at|fecha }}</td><td>{{ e.user.username if e.user else '—' }}</td><td>{{ e.action.replace('_', ' ') }}</td>
+      <td>{% if e.incident_id %}<a href="{{ url_for('incidents.detail', incident_id=e.incident_id) }}">{{ e.detail }}</a>{% else %}{{ e.detail }}{% endif %}</td><td>{{ e.ip or '' }}</td></tr>
+  {% else %}
+  <tr><td colspan="5" class="empty">Sin registros.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{{ pager(page, 'admin.audit_log') }}
+{% endblock %}

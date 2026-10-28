@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, options with context %}
+{% block title %}Reportar incidente{% endblock %}
+{% block content %}
+<h2>Reportar un incidente</h2>
+<form class="card" method="post" novalidate>
+  {{ csrf() }}
+  <label class="f" for="type">Tipo de incidente</label>
+  <select id="type" name="type">{{ options(TYPES, form.type) }}</select>
+  <label class="f" for="title">Resumen corto</label>
+  <input id="title" name="title" maxlength="150" value="{{ form.title }}" placeholder="Ej: Correo pidiendo mi contraseña" required>
+  <label class="f" for="description">¿Qué pasó?</label>
+  <textarea id="description" name="description" maxlength="5000" aria-describedby="h" required>{{ form.description }}</textarea>
+  <p class="hint" id="h">No pegues contraseñas. Cuenta quién lo envió, qué pedía y si hiciste clic en algo.</p>
+  <button class="btn" type="submit">Enviar reporte</button>
+</form>
+<h2>Mis reportes</h2>
+{% for i in mine %}
+<article class="card inc">
+  <h3><a href="{{ url_for('incidents.detail', incident_id=i.id) }}">#{{ i.id }} · {{ i.title }}</a></h3>
+  <div class="meta">{{ TYPES[i.type] }} · {{ i.created_at|fecha }}</div>
+  <span class="b {{ i.status }}">{{ STATES[i.status] }}</span>
+  {% if i.notes %}<p>Respuesta de seguridad: {{ i.notes }}</p>{% endif %}
+</article>
+{% else %}
+<p class="empty">Aún no has reportado incidentes.</p>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}Iniciar sesión{% endblock %}
+{% block mainclass %}narrow{% endblock %}
+{% block content %}
+<form class="card" method="post" autocomplete="on">
+  <h2>Iniciar sesión</h2>
+  <p class="hint">Plataforma interna de reporte y gestión de incidentes de ciberseguridad.</p>
+  {{ csrf() }}
+  <label class="f" for="username">Usuario</label>
+  <input id="username" name="username" value="{{ username or '' }}" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus>
+  <label class="f" for="password">Contraseña</label>
+  <input id="password" name="password" type="password" autocomplete="current-password" required>
+  <button class="btn wide" type="submit">Entrar</button>
+  <p class="hint">¿Olvidaste tu contraseña? Pide al administrador que la restablezca.</p>
+</form>
+{% endblock %}

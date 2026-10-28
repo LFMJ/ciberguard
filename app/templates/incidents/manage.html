@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, options, badges, pager with context %}
+{% block title %}Incidentes{% endblock %}
+{% block content %}
+<h2>{{ 'Gestión de incidentes' if can_edit else 'Incidentes' }}</h2>
+{% if not can_edit %}<p class="hint">Vista de solo lectura. La gestión de incidentes corresponde al encargado de seguridad.</p>{% endif %}
+<form class="card filters" method="get">
+  <div><label class="f" for="fs">Estado</label><select id="fs" name="status">{{ options(STATES, f.status, 'Todos') }}</select></div>
+  <div><label class="f" for="fv">Severidad</label><select id="fv" name="severity">{{ options(SEVERITIES, f.severity, 'Todas') }}</select></div>
+  <div><label class="f" for="ft">Tipo</label><select id="ft" name="type">{{ options(TYPES, f.type, 'Todos') }}</select></div>
+  <div><label class="f" for="fq">Buscar</label><input id="fq" name="q" value="{{ f.q }}" placeholder="Texto en título o descripción"></div>
+  <div class="actions">
+    <button class="btn" type="submit">Filtrar</button>
+    <a class="btn ghost" href="{{ url_for('incidents.export_csv', **request.args) }}">Exportar CSV</a>
+  </div>
+</form>
+<p class="meta">{{ page.total }} incidente{{ '' if page.total == 1 else 's' }}</p>
+{% for i in page.items %}
+<article class="card inc">
+  <h3><a href="{{ url_for('incidents.detail', incident_id=i.id) }}">#{{ i.id }} · {{ i.title }}</a></h3>
+  <div class="meta">{{ TYPES[i.type] }} · Reportó {{ i.reporter.full_name }} · {{ i.created_at|fecha }}{% if i.assigned_to %} · Asignado a {{ i.assigned_to.full_name }}{% endif %}</div>
+  {{ badges(i) }}
+  <p class="pre">{{ i.description }}</p>
+  {% if can_edit %}{% include "incidents/_edit_form.html" %}
+  {% elif i.notes %}<p><b>Notas de seguridad:</b> {{ i.notes }}</p>{% endif %}
+</article>
+{% else %}
+<p class="empty">No hay incidentes con este filtro.</p>
+{% endfor %}
+{{ pager(page, 'incidents.manage') }}
+{% endblock %}

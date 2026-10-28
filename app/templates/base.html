@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}CiberGuard{% endblock %} · CiberGuard</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Saltar al contenido</a>
+<header>
+  <a class="brand" href="{{ url_for('index') }}">CiberGuard</a>
+  {% if current_user.is_authenticated %}
+  <div class="who">
+    <span><b>{{ current_user.full_name }}</b> · {{ current_user.role_name }}</span>
+    <a href="{{ url_for('auth.change_password') }}">Cambiar contraseña</a>
+    <form method="post" action="{{ url_for('auth.logout') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="link">Cerrar sesión</button>
+    </form>
+  </div>
+  {% endif %}
+</header>
+{% if current_user.is_authenticated and not current_user.must_change_password %}
+{% set my_role = current_user.role %}
+{% set items = [] %}
+{% if my_role == 'seguridad' %}{% set items = items + [('incidents.manage','Gestión de incidentes'),('incidents.dashboard','Panel de riesgo')] %}{% endif %}
+{% if my_role == 'admin' %}{% set items = items + [('incidents.dashboard','Panel de riesgo'),('incidents.manage','Incidentes')] %}{% endif %}
+{% set items = items + [('incidents.report','Reportar incidente')] %}
+{% if my_role == 'admin' %}{% set items = items + [('admin.users','Usuarios'),('admin.audit_log','Auditoría')] %}{% endif %}
+<nav aria-label="Secciones">
+  {% for ep, label in items %}
+  <a href="{{ url_for(ep) }}"{% if request.endpoint == ep %} aria-current="page"{% endif %}>{{ label }}</a>
+  {% endfor %}
+</nav>
+{% endif %}
+<main id="main" class="{% block mainclass %}{% endblock %}">
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+  {% if msgs %}<div class="flashes" role="status" aria-live="polite">
+    {% for cat, m in msgs %}<p class="flash {{ cat }}">{{ m }}</p>{% endfor %}
+  </div>{% endif %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

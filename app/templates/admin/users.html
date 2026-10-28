@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, options with context %}
+{% block title %}Usuarios{% endblock %}
+{% block content %}
+<h2>Usuarios</h2>
+{% if temp %}
+<section class="card secret" role="alert">
+  <h3 class="mt0">Usuario «{{ temp[0].username }}» creado</h3>
+  <p>Contraseña temporal: <code>{{ temp[1] }}</code></p>
+  <p class="hint">Entrégala por un canal seguro. Solo se muestra esta vez; el sistema le pedirá cambiarla al ingresar.</p>
+</section>
+{% endif %}
+<form class="card" method="post" novalidate>
+  <h3 class="mt0">Nuevo usuario</h3>
+  {{ csrf() }}
+  <div class="g2">
+    <div><label class="f" for="full_name">Nombre completo</label><input id="full_name" name="full_name" value="{{ form.full_name }}" required></div>
+    <div><label class="f" for="username">Usuario</label><input id="username" name="username" value="{{ form.username }}" autocapitalize="none" spellcheck="false" aria-describedby="uh" required>
+      <p class="hint" id="uh">Minúsculas, números, punto o guion. Ej: carlos.perez</p></div>
+    <div><label class="f" for="email">Correo (opcional)</label><input id="email" name="email" type="email" value="{{ form.email }}"></div>
+    <div><label class="f" for="role">Rol</label><select id="role" name="role">{{ options(ROLES, form.role) }}</select></div>
+  </div>
+  <button class="btn" type="submit">Crear usuario</button>
+</form>
+<div class="card tablewrap">
+<table>
+  <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Estado</th><th>Último ingreso</th><th><span class="sr">Acciones</span></th></tr></thead>
+  <tbody>
+  {% for u in users %}
+  <tr{% if not u.is_active %} class="off"{% endif %}>
+    <td>{{ u.full_name }}{% if u.id == current_user.id %} <span class="hint">(tú)</span>{% endif %}</td>
+    <td>{{ u.username }}</td>
+    <td>{{ u.role_name }}</td>
+    <td>{% if not u.is_active %}<span class="b descartado">Inactivo</span>{% elif u.is_locked() %}<span class="b alta">Bloqueado</span>{% elif u.must_change_password %}<span class="b media">Clave temporal</span>{% else %}<span class="b baja">Activo</span>{% endif %}</td>
+    <td>{{ u.last_login_at|fecha }}</td>
+    <td><a href="{{ url_for('admin.edit_user', user_id=u.id) }}">Editar</a></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, options, badges with context %}
+{% block title %}Incidente #{{ inc.id }}{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('incidents.manage') if current_user.role in ('seguridad','admin') else url_for('incidents.report') }}">← Volver</a></p>
+<article class="card inc">
+  <h2>#{{ inc.id }} · {{ inc.title }}</h2>
+  <div class="meta">{{ TYPES[inc.type] }} · Reportó {{ inc.reporter.full_name }} · {{ inc.created_at|fecha }}</div>
+  {{ badges(inc) }}
+  <dl class="facts">
+    <dt>Asignado a</dt><dd>{{ inc.assigned_to.full_name if inc.assigned_to else 'Sin asignar' }}</dd>
+    <dt>Última actualización</dt><dd>{{ inc.updated_at|fecha }}</dd>
+    <dt>Cerrado</dt><dd>{{ inc.resolved_at|fecha }}</dd>
+  </dl>
+  <h3>Descripción</h3>
+  <p class="pre">{{ inc.description }}</p>
+  {% if can_edit %}
+    {% set i = inc %}{% include "incidents/_edit_form.html" %}
+  {% elif inc.notes %}
+    <h3>Respuesta de seguridad</h3><p class="pre">{{ inc.notes }}</p>
+  {% endif %}
+</article>
+{% if events %}
+<section class="card">
+  <h3 class="mt0">Historial</h3>
+  <ol class="timeline">
+    {% for e in events %}<li><span class="meta">{{ e.created_at|fecha }} · {{ e.user.full_name if e.user else 'Sistema' }}</span><br>{{ e.detail }}</li>{% endfor %}
+  </ol>
+</section>
+{% endif %}
+{% endblock %}

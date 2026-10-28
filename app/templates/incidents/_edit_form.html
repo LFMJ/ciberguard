@@ -1,0 +1,17 @@
+{% from "_macros.html" import csrf, options with context %}
+<form method="post" action="{{ url_for('incidents.update', incident_id=i.id) }}">
+  {{ csrf() }}
+  <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
+  <div class="g3">
+    <div><label class="f" for="s{{ i.id }}">Estado</label><select id="s{{ i.id }}" name="status">{{ options(STATES, i.status) }}</select></div>
+    <div><label class="f" for="v{{ i.id }}">Severidad</label><select id="v{{ i.id }}" name="severity">{{ options(SEVERITIES, i.severity) }}</select></div>
+    <div><label class="f" for="a{{ i.id }}">Asignado a</label><select id="a{{ i.id }}" name="assigned_to_id">
+      <option value="">Sin asignar</option>
+      {% for a in analysts %}<option value="{{ a.id }}"{% if a.id == i.assigned_to_id %} selected{% endif %}>{{ a.full_name }}</option>{% endfor %}
+    </select></div>
+  </div>
+  <label class="f" for="n{{ i.id }}">Notas / acciones tomadas</label>
+  <textarea id="n{{ i.id }}" name="notes" maxlength="5000" aria-describedby="nh{{ i.id }}">{{ i.notes }}</textarea>
+  <p class="hint" id="nh{{ i.id }}">El empleado que reportó verá estas notas.</p>
+  <button class="btn" type="submit">Guardar cambios</button>
+</form>

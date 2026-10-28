@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Panel de riesgo{% endblock %}
+{% macro bars(title, rows) %}
+<section class="card">
+  <h3 class="mt0">{{ title }}</h3>
+  {% for label, n, pct in rows %}
+  <div class="row"><span>{{ label }}</span>
+    <svg class="tr" viewBox="0 0 100 14" preserveAspectRatio="none" role="img" aria-label="{{ label }}: {{ n }}"><rect class="trbg" width="100" height="14"/><rect class="fl" width="{{ pct }}" height="14"/></svg>
+    <b>{{ n }}</b></div>
+  {% endfor %}
+</section>
+{% endmacro %}
+{% block content %}
+<h2>Panel de riesgo</h2>
+{% set L = 314.159 %}
+<section class="card dial">
+  <svg viewBox="0 0 240 140" role="img" aria-label="Nivel de riesgo {{ r.score }} de 100">
+    <path d="M20 120 A100 100 0 0 1 220 120" fill="none" class="arcbg" stroke-width="20" stroke-linecap="round"/>
+    <path class="arc {{ r.level }}" id="arc" d="M20 120 A100 100 0 0 1 220 120" fill="none" stroke-width="20" stroke-linecap="round"
+          stroke-dasharray="{{ L }}" stroke-dashoffset="{{ L * (1 - r.score / 100) }}" data-len="{{ L }}" data-score="{{ r.score }}"/>
+    <text x="120" y="112" text-anchor="middle" font-size="40" font-weight="700" class="svgink">{{ r.score }}</text>
+    <text x="120" y="132" text-anchor="middle" font-size="12" class="svgmut">de 100</text>
+  </svg>
+  <div class="lvl {{ r.level }}">{{ r.title }}</div>
+  <p>{{ r.message }}</p>
+</section>
+<div class="kpis">
+  <div class="kpi"><b>{{ r.open }}</b>Incidentes abiertos</div>
+  <div class="kpi"><b>{{ r.stale }}</b>Sin atender (+48 h)</div>
+  <div class="kpi"><b>{{ r.total }}</b>Reportes totales</div>
+  <div class="kpi"><b>{{ '%d h'|format(r.avg_hours) if r.avg_hours is not none else '—' }}</b>Tiempo medio de solución</div>
+</div>
+{{ bars('Incidentes por estado', r.by_status) }}
+{{ bars('Incidentes por tipo', r.by_type) }}
+<p class="note">Puntaje = (alta×10 + media×5 + baja×2 de los abiertos + 5 por cada uno sin atender &gt;48 h) × 3, máximo 100.</p>
+{% endblock %}

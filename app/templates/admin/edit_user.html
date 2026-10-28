@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, options with context %}
+{% block title %}Editar {{ user.username }}{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('admin.users') }}">← Usuarios</a></p>
+<h2>{{ user.full_name }} <span class="hint">({{ user.username }})</span></h2>
+{% if temp %}
+<section class="card secret" role="alert">
+  <h3 class="mt0">Contraseña restablecida</h3>
+  <p>Nueva contraseña temporal: <code>{{ temp }}</code></p>
+  <p class="hint">Solo se muestra esta vez. El usuario deberá cambiarla al ingresar.</p>
+</section>
+{% endif %}
+<form class="card" method="post">
+  {{ csrf() }}<input type="hidden" name="action" value="save">
+  <div class="g2">
+    <div><label class="f" for="full_name">Nombre completo</label><input id="full_name" name="full_name" value="{{ user.full_name }}" required></div>
+    <div><label class="f" for="email">Correo</label><input id="email" name="email" type="email" value="{{ user.email or '' }}"></div>
+    <div><label class="f" for="role">Rol</label><select id="role" name="role">{{ options(ROLES, user.role) }}</select></div>
+    <div><label class="f" for="active">Estado de la cuenta</label><select id="active" name="active">
+      <option value="1"{% if user.is_active %} selected{% endif %}>Activa</option>
+      <option value="0"{% if not user.is_active %} selected{% endif %}>Inactiva (no puede ingresar)</option></select></div>
+  </div>
+  <button class="btn" type="submit">Guardar cambios</button>
+</form>
+<section class="card">
+  <h3 class="mt0">Acceso</h3>
+  <dl class="facts">
+    <dt>Creado</dt><dd>{{ user.created_at|fecha }}</dd>
+    <dt>Último ingreso</dt><dd>{{ user.last_login_at|fecha }}</dd>
+    <dt>Bloqueado hasta</dt><dd>{{ user.locked_until|fecha if user.is_locked() else 'No está bloqueado' }}</dd>
+  </dl>
+  {% if user.id != current_user.id %}
+  <form method="post" class="inline" data-confirm="¿Generar una nueva contraseña temporal para {{ user.full_name }}? La actual dejará de funcionar.">
+    {{ csrf() }}<input type="hidden" name="action" value="reset"><button class="btn ghost" type="submit">Restablecer contraseña</button>
+  </form>
+  {% endif %}
+  {% if user.is_locked() %}
+  <form method="post" class="inline">{{ csrf() }}<input type="hidden" name="action" value="unlock"><button class="btn ghost" type="submit">Desbloquear cuenta</button></form>
+  {% endif %}
+</section>
+{% endblock %}

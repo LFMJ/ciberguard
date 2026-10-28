@@ -1,0 +1,18 @@
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}
+{% macro options(labels, selected, blank=None) %}
+{% if blank %}<option value="">{{ blank }}</option>{% endif %}
+{% for k, v in labels.items() %}<option value="{{ k }}"{% if k == selected %} selected{% endif %}>{{ v }}</option>{% endfor %}
+{% endmacro %}
+{% macro badges(i) %}
+<span class="b {{ i.status }}">{{ STATES[i.status] }}</span><span class="b {{ i.severity }}">Severidad {{ SEVERITIES[i.severity]|lower }}</span>
+{% endmacro %}
+{% macro pager(page, endpoint) %}
+{% if page.pages > 1 %}
+<nav class="pager" aria-label="Paginación">
+  {% set args = request.args.to_dict() %}
+  {% if page.has_prev %}{% set _ = args.update(page=page.prev_num) %}<a href="{{ url_for(endpoint, **args) }}">← Anterior</a>{% endif %}
+  <span>Página {{ page.page }} de {{ page.pages }}</span>
+  {% if page.has_next %}{% set _ = args.update(page=page.next_num) %}<a href="{{ url_for(endpoint, **args) }}">Siguiente →</a>{% endif %}
+</nav>
+{% endif %}
+{% endmacro %}
