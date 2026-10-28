@@ -23,17 +23,17 @@
   <button class="btn" type="submit">Crear usuario</button>
 </form>
 <div class="card tablewrap">
-<table>
+<table class="stack">
   <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Estado</th><th>Último ingreso</th><th><span class="sr">Acciones</span></th></tr></thead>
   <tbody>
   {% for u in users %}
   <tr{% if not u.is_active %} class="off"{% endif %}>
-    <td>{{ u.full_name }}{% if u.id == current_user.id %} <span class="hint">(tú)</span>{% endif %}</td>
-    <td>{{ u.username }}</td>
-    <td>{{ u.role_name }}</td>
-    <td>{% if not u.is_active %}<span class="b descartado">Inactivo</span>{% elif u.is_locked() %}<span class="b alta">Bloqueado</span>{% elif u.must_change_password %}<span class="b media">Clave temporal</span>{% else %}<span class="b baja">Activo</span>{% endif %}</td>
-    <td>{{ u.last_login_at|fecha }}</td>
-    <td><a href="{{ url_for('admin.edit_user', user_id=u.id) }}">Editar</a></td>
+    <td class="primary">{{ u.full_name }}{% if u.id == current_user.id %} <span class="hint">(tú)</span>{% endif %}</td>
+    <td data-label="Usuario">{{ u.username }}</td>
+    <td data-label="Rol">{{ u.role_name }}</td>
+    <td data-label="Estado">{% if not u.is_active %}<span class="b descartado">Inactivo</span>{% elif u.is_locked() %}<span class="b alta">Bloqueado</span>{% elif u.must_change_password %}<span class="b media">Clave temporal</span>{% else %}<span class="b baja">Activo</span>{% endif %}</td>
+    <td data-label="Último ingreso">{{ u.last_login_at|fecha }}</td>
+    <td class="row-action"><a href="{{ url_for('admin.edit_user', user_id=u.id) }}">Editar<span class="sr"> a {{ u.full_name }}</span></a></td>
   </tr>
   {% endfor %}
   </tbody>

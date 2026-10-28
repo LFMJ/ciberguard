@@ -28,8 +28,8 @@
 
   {% if s.highlights %}
   <h3>Incidentes más relevantes</h3>
-  <table><thead><tr><th>#</th><th>Incidente</th><th>Severidad</th><th>Estado</th></tr></thead>
-    <tbody>{% for i in s.highlights %}<tr><td>{{ i.id }}</td><td>{{ i.title }}<br><span class="hint">{{ TYPES[i.type] }} · {{ i.created_at|fecha_corta }}</span></td><td>{{ SEVERITIES[i.severity] }}</td><td>{{ STATES[i.status] }}</td></tr>{% endfor %}</tbody></table>
+  <table class="stack"><thead><tr><th>#</th><th>Incidente</th><th>Severidad</th><th>Estado</th></tr></thead>
+    <tbody>{% for i in s.highlights %}<tr><td class="hide-sm">{{ i.id }}</td><td class="primary">#{{ i.id }} · {{ i.title }}<br><span class="hint">{{ TYPES[i.type] }} · {{ i.created_at|fecha_corta }}</span></td><td data-label="Severidad">{{ SEVERITIES[i.severity] }}</td><td data-label="Estado">{{ STATES[i.status] }}</td></tr>{% endfor %}</tbody></table>
   {% endif %}
 
   <h3>Protección de datos personales</h3>

@@ -149,6 +149,6 @@ def audit_log():
     q = AuditLog.query
     if action:
         q = q.filter(AuditLog.action == action)
-    page = q.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).paginate(per_page=50, error_out=False)
+    page = q.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).paginate(per_page=25, error_out=False)
     actions = [a for (a,) in db.session.query(AuditLog.action).distinct().order_by(AuditLog.action)]
     return render_template("admin/audit.html", page=page, action=action, actions=actions)

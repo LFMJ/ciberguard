@@ -7,14 +7,14 @@
   <div class="kpi"><b>{{ '%d %%'|format(t.avg) if t.avg is not none else '—' }}</b>Promedio de respuestas correctas</div>
 </div>
 <div class="card tablewrap">
-<table>
+<table class="stack">
   <thead><tr><th>Persona</th><th>Rol</th><th>Último resultado</th><th>Fecha</th><th>Estado</th></tr></thead>
   <tbody>
   {% for r in t.rows %}
-  <tr><td>{{ r.user.full_name }}</td><td>{{ r.user.role_name }}</td>
-    <td>{{ '%d/%d (%d %%)'|format(r.last.correct, r.last.total, r.last.pct) if r.last else '—' }}</td>
-    <td>{{ r.last.created_at|fecha_corta if r.last else '—' }}</td>
-    <td>{% if r.current %}{% if r.last.pct >= 75 %}<span class="b baja">Al día</span>{% else %}<span class="b media">Reforzar</span>{% endif %}{% else %}<span class="b alta">Pendiente</span>{% endif %}</td></tr>
+  <tr><td class="primary">{{ r.user.full_name }}</td><td data-label="Rol">{{ r.user.role_name }}</td>
+    <td data-label="Último resultado">{{ '%d/%d (%d %%)'|format(r.last.correct, r.last.total, r.last.pct) if r.last else '—' }}</td>
+    <td data-label="Fecha">{{ r.last.created_at|fecha_corta if r.last else '—' }}</td>
+    <td data-label="Estado">{% if r.current %}{% if r.last.pct >= 75 %}<span class="b baja">Al día</span>{% else %}<span class="b media">Reforzar</span>{% endif %}{% else %}<span class="b alta">Pendiente</span>{% endif %}</td></tr>
   {% endfor %}
   </tbody>
 </table>

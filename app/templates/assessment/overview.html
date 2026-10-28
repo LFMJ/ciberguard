@@ -37,8 +37,8 @@
   {% else %}<p>¡Cumplen todas las salvaguardas básicas! Mantengan la revisión trimestral.</p>{% endif %}
 </section>
 {% if history|length > 1 %}
-<section class="card tablewrap"><table><thead><tr><th>Fecha</th><th>Responsable</th><th>Madurez</th></tr></thead>
-  <tbody>{% for h in history %}<tr><td>{{ h.created_at|fecha }}</td><td>{{ h.user.full_name }}</td><td>{{ h.score }}</td></tr>{% endfor %}</tbody></table></section>
+<section class="card tablewrap"><table class="stack"><thead><tr><th>Fecha</th><th>Responsable</th><th>Madurez</th></tr></thead>
+  <tbody>{% for h in history %}<tr><td class="primary">{{ h.created_at|fecha }}</td><td data-label="Responsable">{{ h.user.full_name }}</td><td data-label="Madurez">{{ h.score }} de 100</td></tr>{% endfor %}</tbody></table></section>
 {% endif %}
 {% else %}
 <section class="card empty">
