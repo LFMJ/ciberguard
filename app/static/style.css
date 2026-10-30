@@ -277,7 +277,7 @@ h3.pad{padding:18px 20px 4px}
 .reminders li:first-child{border-top:0}.reminders li>div{display:flex;flex-direction:column;min-width:0}
 .reminders li.due b{color:var(--wa)}
 table.compare td.better{color:var(--ok);font-weight:600}table.compare td.worse{color:var(--ba);font-weight:600}.reminders form{margin:0}
-table.compare{width:100%}table.compare th{white-space:normal}
+table.compare{width:100%}table.compare caption{text-align:left;font-weight:600;padding:0 0 6px;color:var(--ink2)}table.compare th{white-space:normal}
 @media (max-width:600px){table.compare th,table.compare td{padding:6px 4px;font-size:.85rem}}
 
 /* --- Navegación: barra lateral (computador) y menú deslizable (celular) --- */

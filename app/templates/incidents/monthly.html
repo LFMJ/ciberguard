@@ -19,7 +19,7 @@
     {% if s.sla.pct is not none %}El <b>{{ s.sla.pct }} %</b> se atendió dentro del plazo.{% endif %}
     Al cierre del período quedaban <b>{{ s.open_at_end }}</b> incidente{{ '' if s.open_at_end == 1 else 's' }} abierto{{ '' if s.open_at_end == 1 else 's' }}.</p>
   {% set p = s.prev %}
-  <table class="compare"><thead><tr><th>Indicador</th><th>Mes anterior</th><th>Este mes</th><th>Cambio</th></tr></thead>
+  <table class="compare"><caption>Comparado con el mes anterior</caption><thead><tr><th>Indicador</th><th>Mes anterior</th><th>Este mes</th><th>Cambio</th></tr></thead>
     <tbody>
     {% for label, a, b, good_down in [('Incidentes reportados', p.reported, s.reported, true), ('Incidentes cerrados', p.closed, s.closed, false), ('Riesgo al cierre', p.score_end, s.score_end, true)] %}
     {% set d = b - a %}
