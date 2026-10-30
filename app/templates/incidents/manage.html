@@ -14,14 +14,15 @@
   <div class="actions">
     <button class="btn" type="submit">Filtrar</button>
     <a class="btn ghost" href="{{ url_for('incidents.export_csv', **request.args) }}">Exportar CSV</a>
+    <a class="btn ghost" href="{{ url_for('incidents.export_indicators') }}">Indicadores para bloquear</a>
   </div>
 </form>
 <p class="meta">{{ page.total }} incidente{{ '' if page.total == 1 else 's' }}</p>
 {% for i in page.items %}
 <article class="card inc">
   <h3><a href="{{ url_for('incidents.detail', incident_id=i.id) }}">#{{ i.id }} · {{ i.title }}</a></h3>
-  <div class="meta">{{ TYPES[i.type] }} · Reportó {{ i.reporter.full_name }} · {{ i.created_at|fecha }}{% if i.assigned_to %} · Asignado a {{ i.assigned_to.full_name }}{% endif %}</div>
-  {{ badges(i) }}{{ sla(i) }}{{ pdata(i) }}{% if i.attachments %}<span class="b descartado">📎 {{ i.attachments|length }}</span>{% endif %}
+  <div class="meta">{{ TYPES[i.type] }} · {{ ('Reportó ' ~ i.reporter.full_name) if not i.anonymous else 'Reporte anónimo' }} · {{ i.created_at|fecha }}{% if i.assigned_to %} · Asignado a {{ i.assigned_to.full_name }}{% endif %}</div>
+  {{ badges(i) }}{{ sla(i) }}{{ pdata(i) }}{% if campaigns.get(i.id) %}<span class="b alta">⚠ Campaña ×{{ campaigns[i.id] }}</span>{% endif %}{% set pg = progress(i) %}{% if pg[1] and pg[0] %}<span class="b descartado">Guía {{ pg[0] }}/{{ pg[1] }}</span>{% endif %}{% if i.comments %}<span class="b descartado">💬 {{ i.comments|length }}</span>{% endif %}{% if i.attachments %}<span class="b descartado">📎 {{ i.attachments|length }}</span>{% endif %}
   <p class="pre">{{ i.description }}</p>
   {% if can_edit %}{% include "incidents/_edit_form.html" %}
   {% elif i.notes %}<p><b>Notas de seguridad:</b> {{ i.notes }}</p>{% endif %}

@@ -201,3 +201,155 @@ QUIZ = [
         "why": "Compartir datos de otros clientes viola la Ley 1581 de 2012 de protección de datos personales. Cada titular solo puede acceder a su propia información.",
     },
 ]
+
+
+# ---------------------------------------------------------------------------
+# 4. Preguntas guiadas al reportar. Cada respuesta «Sí» puede subir la severidad sugerida.
+#    (id, pregunta, severidad si la respuesta es «Sí», motivo que verá seguridad)
+# ---------------------------------------------------------------------------
+GUIDED = {
+    "phishing": [
+        ("clic", "¿Hiciste clic en el enlace o abriste un adjunto?", "media", "abrió el enlace o el adjunto"),
+        ("clave", "¿Escribiste tu usuario o contraseña en la página?", "alta", "escribió su contraseña en la página falsa"),
+        ("banco", "¿Diste datos bancarios, de tarjeta o hiciste un pago?", "alta", "entregó datos bancarios o pagó"),
+        ("respondio", "¿Respondiste el mensaje?", "media", "respondió al atacante"),
+    ],
+    "malware": [
+        ("abrio", "¿Abriste el archivo o ejecutaste el programa?", "media", "abrió o ejecutó el archivo"),
+        ("raro", "¿El equipo se comporta raro (lento, ventanas, archivos que cambian)?", "alta", "el equipo muestra síntomas"),
+        ("rescate", "¿Apareció un mensaje pidiendo pago o rescate?", "alta", "posible ransomware"),
+        ("red", "¿El equipo sigue conectado a la red de la empresa?", "media", "el equipo sigue en la red"),
+    ],
+    "contrasena": [
+        ("propia", "¿La contraseña expuesta es tuya?", "media", "contraseña propia expuesta"),
+        ("critica", "¿Da acceso al correo, al banco o a sistemas de la empresa?", "alta", "da acceso a sistemas críticos"),
+        ("usada", "¿Crees que alguien ya la usó?", "alta", "posible uso por un tercero"),
+    ],
+    "acceso_indebido": [
+        ("cuenta", "¿Notaste actividad en una cuenta que no hiciste tú?", "alta", "actividad no reconocida en una cuenta"),
+        ("fisico", "¿Alguien entró físicamente a un área o equipo sin permiso?", "media", "acceso físico no autorizado"),
+        ("envio", "¿Se envió información a quien no debía?", "alta", "información enviada a un tercero"),
+    ],
+    "otro": [],
+}
+GUIDED_ANSWERS = {"si": "Sí", "no": "No", "no_se": "No sé"}
+SEVERITY_RANK = {"baja": 0, "media": 1, "alta": 2}
+
+
+def suggest_severity(type_, answers, personal_data):
+    """Severidad sugerida y los motivos. Con datos personales expuestos siempre es alta."""
+    reasons, level = [], None
+    for qid, _text, sev, why in GUIDED.get(type_, []):
+        if answers.get(qid) == "si":
+            reasons.append(why)
+            level = sev if level is None or SEVERITY_RANK[sev] > SEVERITY_RANK[level] else level
+    if personal_data == "si":
+        reasons.append("posible exposición de datos personales")
+        level = "alta"
+    if level is None:
+        qs = GUIDED.get(type_, [])
+        answered_no = qs and all(answers.get(q[0]) == "no" for q in qs)
+        level = "baja" if answered_no and personal_data == "no" else "media"
+        if answered_no and personal_data == "no":
+            reasons.append("no hubo interacción ni datos expuestos")
+    return level, reasons
+
+
+# ---------------------------------------------------------------------------
+# 5. Guías de respuesta para el encargado de seguridad (fases de NIST SP 800-61).
+#    La fase «Lecciones aprendidas» se completa con los campos causa y medida preventiva.
+# ---------------------------------------------------------------------------
+PLAYBOOKS = {
+    "phishing": [
+        ("Contención", [
+            ("ph1", "Pedir al empleado que no interactúe más y conserve el mensaje como evidencia."),
+            ("ph2", "Si escribió su contraseña: cambiarla ya y cerrar sesiones abiertas en todos los dispositivos."),
+            ("ph3", "Buscar si otros empleados recibieron el mismo mensaje y advertirles."),
+        ]),
+        ("Erradicación", [
+            ("ph4", "Bloquear el remitente y el dominio en el filtro de correo."),
+            ("ph5", "Eliminar el mensaje de los buzones que lo recibieron."),
+            ("ph6", "Si hubo datos bancarios: contactar al banco para bloquear tarjetas o pagos."),
+        ]),
+        ("Recuperación", [
+            ("ph7", "Activar la verificación en dos pasos en la cuenta afectada."),
+            ("ph8", "Revisar reglas de reenvío o actividad extraña en el correo durante 7 días."),
+        ]),
+    ],
+    "malware": [
+        ("Contención", [
+            ("mw1", "Desconectar el equipo de la red (cable y wifi) sin apagarlo."),
+            ("mw2", "Identificar el archivo, su origen y la hora en que se abrió."),
+            ("mw3", "Revisar si otros equipos recibieron o abrieron el mismo archivo."),
+        ]),
+        ("Erradicación", [
+            ("mw4", "Ejecutar un análisis completo con el antivirus actualizado."),
+            ("mw5", "Si persiste o hay rescate: reinstalar el sistema operativo desde cero."),
+            ("mw6", "Cambiar las contraseñas usadas en ese equipo desde otro equipo limpio."),
+        ]),
+        ("Recuperación", [
+            ("mw7", "Restaurar archivos desde una copia de seguridad anterior al incidente."),
+            ("mw8", "Volver a conectar el equipo y vigilarlo durante una semana."),
+        ]),
+    ],
+    "contrasena": [
+        ("Contención", [
+            ("pw1", "Cambiar la contraseña expuesta por una nueva y larga."),
+            ("pw2", "Cerrar las sesiones abiertas de esa cuenta."),
+        ]),
+        ("Erradicación", [
+            ("pw3", "Retirar el papel, archivo o mensaje donde quedó escrita."),
+            ("pw4", "Cambiarla también en otros servicios donde se reutilizaba."),
+        ]),
+        ("Recuperación", [
+            ("pw5", "Activar la verificación en dos pasos en la cuenta."),
+            ("pw6", "Revisar los accesos recientes de la cuenta en busca de uso indebido."),
+        ]),
+    ],
+    "acceso_indebido": [
+        ("Contención", [
+            ("ac1", "Bloquear la cuenta o el acceso comprometido."),
+            ("ac2", "Si es físico: retirar credenciales o llaves y avisar a la administración."),
+            ("ac3", "Conservar registros de acceso, correos y cámaras como evidencia."),
+        ]),
+        ("Erradicación", [
+            ("ac4", "Cambiar contraseñas y revisar los permisos de la cuenta afectada."),
+            ("ac5", "Si se envió información: pedir al destinatario que la elimine y lo confirme por escrito."),
+        ]),
+        ("Recuperación", [
+            ("ac6", "Restablecer el acceso legítimo con verificación en dos pasos."),
+            ("ac7", "Evaluar si debe reportarse a la SIC (datos personales)."),
+        ]),
+    ],
+    "otro": [
+        ("Contención", [("ot1", "Delimitar qué equipos, cuentas o datos están involucrados.")]),
+        ("Erradicación", [("ot2", "Eliminar la causa identificada.")]),
+        ("Recuperación", [("ot3", "Volver a la operación normal y vigilar.")]),
+    ],
+}
+PLAYBOOK_STEPS = {sid: text for phases in PLAYBOOKS.values() for _p, steps in phases for sid, text in steps}
+
+
+def playbook_progress(type_, done):
+    ids = [sid for _p, steps in PLAYBOOKS.get(type_, []) for sid, _t in steps]
+    if not ids:
+        return 0, 0
+    return sum(1 for s in ids if s in done), len(ids)
+
+
+# ---------------------------------------------------------------------------
+# 6. Recordatorios periódicos. «auto» se calcula con los datos; «manual» se marca como hecho.
+#    (clave, título, cada cuántos días, tipo, explicación)
+# ---------------------------------------------------------------------------
+REMINDERS = [
+    ("autoevaluacion", "Actualizar la autoevaluación de madurez", 90, "auto",
+     "Repetirla cada trimestre muestra si el plan de acción está funcionando."),
+    ("capacitacion", "Pedir la microcapacitación a quienes estén pendientes", 90, "auto",
+     "Cada persona debería hacerla al menos una vez por trimestre."),
+    ("restauracion", "Probar la restauración de una copia de seguridad", 180, "manual",
+     "Una copia que nunca se ha probado puede no servir el día que se necesite."),
+    ("cuentas", "Revisar cuentas de personas retiradas y permisos", 30, "manual",
+     "Desactivar accesos de quien ya no trabaja en la empresa (correo, sistemas, wifi)."),
+    ("actualizaciones", "Verificar que los equipos tengan las actualizaciones al día", 30, "manual",
+     "Sistema operativo, navegadores y antivirus."),
+]

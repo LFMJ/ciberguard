@@ -65,3 +65,8 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 });
+
+// Aplicación instalable: el service worker solo guarda archivos estáticos (ver /sw.js).
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+}

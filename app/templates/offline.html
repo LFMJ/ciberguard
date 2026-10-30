@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Sin conexión{% endblock %}
+{% block content %}
+<section class="card empty">
+  <h2>Sin conexión a internet</h2>
+  <p>CiberGuard necesita internet para guardar y consultar reportes. Revisa tu conexión y vuelve a intentarlo.</p>
+  <p class="hint">Si es urgente (por ejemplo, crees que alguien entró a tu cuenta), avisa por teléfono al encargado de seguridad y desconecta el equipo de la red.</p>
+  <a class="btn" href="{{ url_for('index') }}">Reintentar</a>
+</section>
+{% endblock %}

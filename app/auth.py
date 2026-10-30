@@ -8,7 +8,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from . import totp
 from .extensions import db
 from .models import User, utcnow
-from .security import audit, password_problems
+from .security import audit, password_problems, safe_next
 
 bp = Blueprint("auth", __name__)
 
@@ -142,6 +142,14 @@ def security_settings():
     return render_template(
         "auth/security.html", pending=pending, qr=qr, secret_txt=totp.format_secret(pending) if pending else ""
     )
+
+
+@bp.route("/cuenta/tema", methods=["POST"])
+@login_required
+def toggle_theme():
+    current_user.theme = "claro" if current_user.theme != "claro" else "oscuro"
+    db.session.commit()
+    return redirect(safe_next(request.form.get("next", ""), url_for("index")))
 
 
 @bp.route("/logout", methods=["POST"])

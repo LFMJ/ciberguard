@@ -18,19 +18,27 @@
   {% endif %}
 {% endif %}
 
+{% if related %}
+<section class="card campaign" role="note">
+  <h3 class="mt0">⚠ Posible campaña: {{ related|length + 1 }} reportes con el mismo remitente o dominio</h3>
+  <p class="hint">En los últimos 14 días. Considera atenderlos juntos y bloquear el remitente para toda la empresa.</p>
+  <ul>{% for r in related %}<li><a href="{{ url_for('incidents.detail', incident_id=r.id) }}">#{{ r.id }} · {{ r.title }}</a> <span class="hint">{{ r.reporter_name }} · {{ r.created_at|fecha }} · {{ STATES[r.status] }}</span></li>{% endfor %}</ul>
+</section>
+{% endif %}
+
 {% if sic and current_user.role in ('seguridad','admin') and inc.needs_sic_report %}
 <section class="card legal {{ 'over' if sic.overdue }}" role="note">
   <h3 class="mt0">🔒 Posible incidente con datos personales (Ley 1581 de 2012)</h3>
   <p>La SIC indica reportar en el Registro Nacional de Bases de Datos (RNBD) los incidentes que afecten datos personales dentro de los <b>15 días hábiles</b> siguientes a su detección.</p>
   <p><b>Fecha límite de referencia: {{ sic.due|fecha_corta }}</b> —
-    {% if sic.overdue %}vencida hace {{ -sic.left }} día(s) hábil(es).{% else %}quedan {{ sic.left }} día(s) hábil(es) (sin descontar festivos).{% endif %}</p>
+    {% if sic.overdue %}vencida hace {{ -sic.left }} día(s) hábil(es).{% else %}quedan {{ sic.left }} día(s) hábil(es), sin contar fines de semana ni festivos.{% endif %}</p>
   <p class="hint">Confirmen el procedimiento vigente con su asesor legal. Cuando lo reporten, registren la fecha abajo.</p>
 </section>
 {% endif %}
 
 <article class="card inc">
   <h2>#{{ inc.id }} · {{ inc.title }}</h2>
-  <div class="meta">{{ TYPES[inc.type] }} · Reportó {{ inc.reporter.full_name }} · {{ inc.created_at|fecha }}</div>
+  <div class="meta">{{ TYPES[inc.type] }} · {% if inc.anonymous %}{{ 'Reportaste de forma anónima' if inc.reporter_id == current_user.id else 'Reporte anónimo' }}{% else %}Reportó {{ inc.reporter.full_name }}{% endif %} · {{ inc.created_at|fecha }}</div>
   {{ badges(inc) }}{% if current_user.role in ('seguridad','admin') %}{{ sla(inc) }}{% endif %}{{ pdata(inc) }}
   <dl class="facts">
     <dt>Asignado a</dt><dd>{{ inc.assigned_to.full_name if inc.assigned_to else 'Sin asignar' }}</dd>
@@ -39,11 +47,22 @@
     <dt>Primera atención</dt><dd>{{ inc.first_response_at|fecha }}</dd>
     <dt>Datos personales</dt><dd>{{ PERSONAL_DATA[inc.personal_data] }}{% if inc.sic_reported_at %} · reportado a la SIC el {{ inc.sic_reported_at|fecha_corta }}{% endif %}</dd>
     {% endif %}
+    {% if current_user.role in ('seguridad','admin') and inc.suggested_severity %}
+    <dt>Severidad sugerida</dt><dd><span class="b {{ inc.suggested_severity }}">{{ SEVERITIES[inc.suggested_severity] }}</span>{% if reasons %} <span class="hint">{{ reasons|join('; ') }}</span>{% endif %}</dd>
+    {% endif %}
+    {% if current_user.role in ('seguridad','admin') and (inc.ioc_sender or inc.ioc_url) %}
+    <dt>Remitente</dt><dd><code class="ioc-v">{{ inc.ioc_sender or '—' }}</code></dd>
+    <dt>Enlace</dt><dd><code class="ioc-v">{{ inc.ioc_url or '—' }}</code> <span class="hint">(no se muestra como enlace para evitar abrirlo por error)</span></dd>
+    {% endif %}
     <dt>Última actualización</dt><dd>{{ inc.updated_at|fecha }}</dd>
     <dt>Cerrado</dt><dd>{{ inc.resolved_at|fecha }}</dd>
   </dl>
   <h3>Descripción</h3>
   <p class="pre">{{ inc.description }}</p>
+  {% if guided and inc.guided %}
+  <h3>Respuestas a las preguntas</h3>
+  <dl class="facts answers">{% for qid, text, _s, _w in guided %}{% if inc.guided.get(qid) %}<dt>{{ text }}</dt><dd><b>{{ guided_answers[inc.guided[qid]] }}</b></dd>{% endif %}{% endfor %}</dl>
+  {% endif %}
 
   <h3>Evidencia</h3>
   {% if not can_see_evidence %}
@@ -53,7 +72,7 @@
     {% for a in inc.attachments %}
     <li>{% if a.is_image %}<a href="{{ url_for('incidents.attachment', attachment_id=a.id) }}" target="_blank" rel="noopener"><img src="{{ url_for('incidents.attachment', attachment_id=a.id) }}" alt="Evidencia: {{ a.original_name }}" loading="lazy"></a>{% endif %}
       <a href="{{ url_for('incidents.attachment', attachment_id=a.id) }}">{{ a.original_name }}</a>
-      <span class="hint">{{ (a.size / 1024)|round|int }} KB · {{ a.uploader.full_name }} · {{ a.created_at|fecha }}</span></li>
+      <span class="hint">{{ (a.size / 1024)|round|int }} KB · {{ 'Persona que reportó' if inc.anonymous and a.uploader_id == inc.reporter_id and a.uploader_id != current_user.id else a.uploader.full_name }} · {{ a.created_at|fecha }}</span></li>
     {% endfor %}
   </ul>
   {% else %}<p class="hint">Sin archivos adjuntos.</p>{% endif %}
@@ -73,11 +92,55 @@
     <h3>Respuesta de seguridad</h3><p class="pre">{{ inc.notes }}</p>
   {% endif %}
 </article>
+{% if playbook and current_user.role in ('seguridad','admin') %}
+<section class="card" id="guia-respuesta" aria-labelledby="pb-h">
+  <div class="risk-top"><h3 class="mt0" id="pb-h">Guía de respuesta (NIST SP 800-61)</h3><span class="pill {{ 'bajo' if progress[0] == progress[1] else 'medio' }}">{{ progress[0] }}/{{ progress[1] }} pasos</span></div>
+  <svg class="tr pbbar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="trbg" width="100" height="10"/><rect class="fl" width="{{ (progress[0] / progress[1] * 100) if progress[1] else 0 }}" height="10"/></svg>
+  <form method="post" action="{{ url_for('incidents.update_playbook', incident_id=inc.id) }}">
+    {{ csrf() }}
+    {% for phase, steps in playbook %}
+    <fieldset class="field phase"><legend class="f">{{ loop.index }}. {{ phase }}</legend>
+      {% for sid, text in steps %}
+      <label class="choice block step{{ ' done' if sid in done }}"><input type="checkbox" name="step" value="{{ sid }}"{% if sid in done %} checked{% endif %}{% if not can_edit %} disabled{% endif %}> <span>{{ text }}</span></label>
+      {% endfor %}
+    </fieldset>
+    {% endfor %}
+    <p class="hint">4. Lecciones aprendidas: se registran en «Causa» y «Medida preventiva» al cerrar el incidente.</p>
+    {% if can_edit %}<button class="btn ghost" type="submit">Guardar avance</button>{% endif %}
+  </form>
+</section>
+{% endif %}
+
+<section class="card" id="conversacion" aria-labelledby="cv-h">
+  <h3 class="mt0" id="cv-h">Conversación</h3>
+  {% if can_talk %}
+  {% if inc.comments %}
+  <ol class="thread">
+    {% for c in inc.comments %}
+    <li class="{{ 'mine' if c.user_id == current_user.id else '' }} {{ 'staff' if c.user.role == 'seguridad' else '' }}">
+      <p class="who">{{ 'Tú' if c.user_id == current_user.id else c.author_name }}{% if c.user.role == 'seguridad' and c.user_id != current_user.id %} · Seguridad{% endif %} <span class="hint">{{ c.created_at|fecha }}</span></p>
+      <p class="pre">{{ c.body }}</p>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}<p class="hint">{{ 'Escribe aquí si seguridad te pregunta algo o recuerdas un detalle nuevo.' if inc.reporter_id == current_user.id else 'Pregunta a quien reportó lo que necesites saber.' }}</p>{% endif %}
+  <form method="post" action="{{ url_for('incidents.add_comment', incident_id=inc.id) }}">
+    {{ csrf() }}
+    <label class="f" for="body">Mensaje</label>
+    <textarea id="body" name="body" maxlength="2000" rows="3" required placeholder="{{ 'Ej: ¿Hiciste clic en el enlace?' if current_user.role == 'seguridad' else 'Ej: Ya cambié mi contraseña' }}"></textarea>
+    <p class="hint">No escribas contraseñas. {{ 'Quien reportó' if current_user.role == 'seguridad' else 'Seguridad' }} recibirá un aviso.</p>
+    <button class="btn" type="submit">Enviar mensaje</button>
+  </form>
+  {% else %}
+  <p class="hint">{{ inc.comments|length }} mensaje(s). La conversación es privada entre quien reportó y el encargado de seguridad.</p>
+  {% endif %}
+</section>
+
 {% if events %}
 <section class="card">
   <h3 class="mt0">Historial</h3>
   <ol class="timeline">
-    {% for e in events %}<li><span class="meta">{{ e.created_at|fecha }} · {{ e.user.full_name if e.user else 'Sistema' }}</span><br>{{ e.detail }}</li>{% endfor %}
+    {% for e in events %}<li><span class="meta">{{ e.created_at|fecha }} · {{ e.user.full_name if e.user else ('Persona que reportó' if inc.anonymous else 'Sistema') }}</span><br>{{ e.detail }}</li>{% endfor %}
   </ol>
 </section>
 {% endif %}

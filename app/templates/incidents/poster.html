@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Afiche con QR{% endblock %}
+{% block content %}
+<div class="risk-top noprint">
+  <h2>Afiche para la oficina</h2>
+  <button class="btn" type="button" data-print>Imprimir</button>
+</div>
+<p class="hint noprint">Imprímelo en tamaño carta y pégalo cerca de los computadores o la cafetería. El QR lleva al formulario de reporte; quien lo escanee debe iniciar sesión con su usuario.</p>
+<article class="poster" aria-label="Vista previa del afiche">
+  <p class="poster-brand">CiberGuard{% if COMPANY %} · {{ COMPANY }}{% endif %}</p>
+  <h1>¿Viste algo raro en tu correo o tu computador?</h1>
+  <p class="poster-sub">Repórtalo en 2 minutos. Avisar rápido evita daños mayores y nadie te va a regañar.</p>
+  <img class="poster-qr" src="{{ qr }}" alt="Código QR al formulario de reporte" width="300" height="300">
+  <p class="poster-url">{{ link }}</p>
+  <ol class="poster-steps">
+    <li><b>No hagas clic</b> ni respondas el mensaje sospechoso.</li>
+    <li><b>Escanea el código</b> e inicia sesión.</li>
+    <li><b>Cuenta qué pasó.</b> Puedes hacerlo sin mostrar tu nombre.</li>
+  </ol>
+  <p class="poster-foot">Correos que piden contraseñas · enlaces extraños · archivos inesperados · pantallas que piden pagos · alguien usando tu cuenta</p>
+</article>
+{% endblock %}

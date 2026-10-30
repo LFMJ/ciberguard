@@ -3,17 +3,16 @@
 Riesgo por incidentes (misma idea de la demo MVP):
     (alta×10 + media×5 + baja×2 de los abiertos + 5 por cada uno fuera del tiempo de atención) × 3, máx. 100
 Riesgo global, si hay autoevaluación:
-    60 % riesgo por incidentes + 40 % brecha de madurez (100 − puntaje de madurez)
+    peso × riesgo por incidentes + (1 − peso) × brecha de madurez; peso configurable (60 % por defecto)
 """
 from datetime import datetime, timedelta
 
-from . import content
+from . import content, settings
 from .models import (
     CLOSED_STATES, OPEN_STATES, SEVERITIES, STATES, TYPES, Assessment, Incident, QuizAttempt, User, utcnow,
 )
 
 WEIGHTS = {"alta": 10, "media": 5, "baja": 2}
-INCIDENT_SHARE = 0.6
 TRAINING_WINDOW_DAYS = 90
 
 MESSAGES = {
@@ -46,7 +45,8 @@ def incident_score(incidents, t):
 def combine(inc_score, maturity):
     if maturity is None:
         return inc_score
-    return round(INCIDENT_SHARE * inc_score + (1 - INCIDENT_SHARE) * (100 - maturity))
+    share = settings.incident_share()
+    return round(share * inc_score + (1 - share) * (100 - maturity))
 
 
 def sla_summary(incidents, now):
@@ -132,7 +132,7 @@ def compute():
     }
 
 
-def month_summary(year, month):
+def month_summary(year, month, compare=True):
     start = datetime(year, month, 1)
     end = datetime(year + (month == 12), month % 12 + 1, 1)
     now = min(utcnow(), end)
@@ -164,4 +164,6 @@ def month_summary(year, month):
         "people_trained": len({x.user_id for x in attempts}),
         "quiz_avg": round(sum(x.pct for x in attempts) / len(attempts)) if attempts else None,
         "highlights": sorted(inc, key=lambda i: (-WEIGHTS[i.severity], i.created_at))[:5],
+        "lessons": [i for i in closed if i.lesson or i.root_cause],
+        "prev": month_summary(year - (month == 1), (month - 2) % 12 + 1, compare=False) if compare else None,
     }

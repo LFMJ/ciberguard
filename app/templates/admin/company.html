@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% from "_icons.html" import icon with context %}
+{% block title %}Empresa{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="eyebrow">Administración</p><h2>Configuración de la empresa</h2></div></div>
+<form method="post" enctype="multipart/form-data" novalidate>
+  {{ csrf() }}
+  <section class="card">
+    <h3 class="mt0">Identidad</h3>
+    <div class="g2">
+      <div><label class="f" for="company_name">Nombre de la empresa</label>
+        <input id="company_name" name="company_name" maxlength="80" value="{{ s.company_name }}" placeholder="Ej: Distribuciones Andinas S.A.S.">
+        <p class="hint">Aparece en el menú y en el reporte mensual.</p></div>
+      <div><p class="f">Logo (PNG o JPG, máx. 512 KB)</p>
+        {% if HAS_LOGO %}<div class="logo-prev"><img src="{{ url_for('admin.logo') }}" alt="Logo actual"><label class="choice"><input type="checkbox" name="logo_clear" value="1"> Quitar logo</label></div>{% endif %}
+        <div class="filepick">
+          <input id="logo" name="logo" type="file" accept="image/png,image/jpeg" data-filepick>
+          <label for="logo">{{ icon('upload') }}<span data-filepick-text>{{ 'Cambiar logo' if HAS_LOGO else 'Subir logo' }}</span></label>
+        </div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3 class="mt0">Tiempos de atención</h3>
+    <p class="hint">Horas máximas para la primera atención según la severidad. Cambian los avisos de «vencido» y el riesgo.</p>
+    <div class="g3">
+      {% for sev, label in SEVERITIES.items()|reverse %}
+      <div><label class="f" for="sla_{{ sev }}">Severidad {{ label|lower }} (horas)</label>
+        <input id="sla_{{ sev }}" name="sla_{{ sev }}" type="number" min="1" max="720" value="{{ sla[sev] }}" inputmode="numeric"></div>
+      {% endfor %}
+    </div>
+    <label class="f" for="incident_share">Peso del riesgo por incidentes en el riesgo global (%)</label>
+    <input id="incident_share" name="incident_share" type="number" min="0" max="100" value="{{ s.incident_share }}" inputmode="numeric" aria-describedby="sh-h">
+    <p class="hint" id="sh-h">El resto lo aporta la brecha de madurez de la autoevaluación. Recomendado: 60.</p>
+  </section>
+
+  <section class="card">
+    <h3 class="mt0">Festivos para el plazo de la SIC</h3>
+    <p class="hint">Los festivos de Colombia se calculan automáticamente (Ley 51 de 1983). Si el Gobierno decreta uno adicional, agrégalo abajo.</p>
+    <details><summary>Ver festivos calculados ({{ holidays|length }})</summary>
+      <ul class="holidays">{% for d, n in holidays %}<li><span class="num">{{ d.strftime('%d/%m/%Y') }}</span> {{ n }}</li>{% endfor %}</ul>
+    </details>
+    <label class="f" for="extra_holidays">Festivos adicionales (uno por línea, AAAA-MM-DD)</label>
+    <textarea id="extra_holidays" name="extra_holidays" rows="3" placeholder="2026-07-09">{{ s.extra_holidays }}</textarea>
+  </section>
+
+  <section class="card">
+    <h3 class="mt0">Alertas por Telegram (opcional)</h3>
+    <p class="hint">Avisa al grupo de seguridad cuando llega un incidente de severidad alta. El mensaje no incluye título ni descripción, solo el número, el tipo y el enlace.</p>
+    <ol class="steps small">
+      <li>En Telegram, habla con <b>@BotFather</b>, envía <code>/newbot</code> y copia el token.</li>
+      <li>Agrega el bot al grupo de seguridad y escribe cualquier mensaje.</li>
+      <li>Escribe el identificador del chat del grupo (por ejemplo <code>-1001234567890</code>).</li>
+    </ol>
+    <div class="g2">
+      <div><label class="f" for="telegram_token">Token del bot</label>
+        <input id="telegram_token" name="telegram_token" autocomplete="off" value="{{ '********' if s.telegram_token }}" placeholder="123456:ABC-…">
+        {% if s.telegram_token %}<label class="choice"><input type="checkbox" name="telegram_clear" value="1"> Borrar token</label>{% endif %}</div>
+      <div><label class="f" for="telegram_chat">Chat o grupo</label>
+        <input id="telegram_chat" name="telegram_chat" value="{{ s.telegram_chat }}" placeholder="-1001234567890"></div>
+    </div>
+  </section>
+  <div class="actions-row"><button class="btn" type="submit">Guardar configuración</button></div>
+</form>
+{% if telegram_ready %}
+<form method="post" class="inline">{{ csrf() }}<input type="hidden" name="action" value="telegram_test"><button class="btn ghost" type="submit">Enviar mensaje de prueba</button></form>
+{% endif %}
+{% endblock %}

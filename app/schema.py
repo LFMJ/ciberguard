@@ -12,11 +12,21 @@ NEW_COLUMNS = {
         "totp_secret": "VARCHAR(64)",
         "totp_enabled": "BOOLEAN NOT NULL DEFAULT 0",
         "totp_last_step": "INTEGER",
+        "theme": "VARCHAR(10) NOT NULL DEFAULT 'oscuro'",
     },
     "incidents": {
         "first_response_at": "DATETIME",
         "personal_data": "VARCHAR(10) NOT NULL DEFAULT 'no_se'",
         "sic_reported_at": "DATE",
+        "guided_json": "TEXT NOT NULL DEFAULT '{}'",
+        "suggested_severity": "VARCHAR(10)",
+        "anonymous": "BOOLEAN NOT NULL DEFAULT 0",
+        "ioc_sender": "VARCHAR(200) NOT NULL DEFAULT ''",
+        "ioc_domain": "VARCHAR(200) NOT NULL DEFAULT ''",
+        "ioc_url": "VARCHAR(500) NOT NULL DEFAULT ''",
+        "playbook_json": "TEXT NOT NULL DEFAULT '[]'",
+        "root_cause": "TEXT NOT NULL DEFAULT ''",
+        "lesson": "TEXT NOT NULL DEFAULT ''",
     },
 }
 

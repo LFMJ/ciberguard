@@ -26,12 +26,16 @@ def groups_for(user):
             ("assessment.overview", "Autoevaluación", "check", ("assessment.new",)),
             ("incidents.monthly_report", "Reporte mensual", "file", ()),
         ]))
-    groups.append(("Prevención", [("training.quiz", "Capacitación", "cap", ("training.team",))]))
+    prevention = [("training.quiz", "Capacitación", "cap", ("training.team",))]
+    if staff:
+        prevention.append(("incidents.poster", "Afiche con QR", "qr", ()))
+    groups.append(("Prevención", prevention))
 
     if role == "admin":
         groups.append(("Administración", [
             ("admin.users", "Usuarios", "users", ("admin.edit_user",)),
             ("admin.audit_log", "Auditoría", "list", ()),
+            ("admin.company", "Empresa", "building", ()),
         ]))
     return groups
 

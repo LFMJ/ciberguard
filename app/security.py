@@ -29,19 +29,29 @@ def client_ip():
     return (request.headers.get("X-Real-IP") or request.remote_addr or "")[:45]
 
 
-def audit(action, detail="", user=None, incident=None):
-    """Agrega una entrada a la bitácora. El commit lo hace quien llama."""
-    if user is None and current_user and current_user.is_authenticated:
+def audit(action, detail="", user=None, incident=None, anonymous=False):
+    """Agrega una entrada a la bitácora. El commit lo hace quien llama.
+
+    Con anonymous=True no se guarda ni el usuario ni la IP, para no revelar a quien reporta en forma anónima.
+    """
+    if user is None and not anonymous and current_user and current_user.is_authenticated:
         user = current_user
     db.session.add(
         AuditLog(
             action=action,
             detail=detail,
-            user_id=user.id if user else None,
+            user_id=None if anonymous else (user.id if user else None),
             incident_id=incident.id if incident else None,
-            ip=client_ip(),
+            ip=None if anonymous else client_ip(),
         )
     )
+
+
+def safe_next(value, default):
+    """Solo rutas internas: evita redirecciones abiertas (//otro.sitio, \\otro.sitio)."""
+    if not value or not value.startswith("/") or value.startswith("//") or "\\" in value:
+        return default
+    return value
 
 
 def password_problems(raw, username=""):

@@ -18,7 +18,7 @@ def upload_dir():
     return path
 
 
-def _detect(head):
+def detect(head):
     for magic, ext in MAGIC.items():
         if head.startswith(magic):
             return ext
@@ -39,7 +39,7 @@ def save_files(files, incident, user):
         if len(data) > MAX_FILE_BYTES:
             errors.append(f"«{name}» supera 2 MB.")
             continue
-        ext = _detect(data[:8])
+        ext = detect(data[:8])
         if not ext:
             errors.append(f"«{name}» no es una imagen PNG/JPG ni un PDF.")
             continue

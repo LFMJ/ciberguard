@@ -2,31 +2,47 @@
 
 La SIC indica reportar los incidentes que afecten datos personales en el Registro Nacional de
 Bases de Datos (RNBD) dentro de los 15 días hábiles siguientes a su detección.
-Aquí se cuentan días hábiles de lunes a viernes; los festivos no se descuentan.
+Se cuentan días hábiles: lunes a viernes sin festivos de Colombia (calculados por ley) ni los festivos
+adicionales que configure la empresa.
 """
 from datetime import date, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from flask import current_app
 
+from . import holidays
 from .models import utcnow
 
 SIC_BUSINESS_DAYS = 15
 
 
-def add_business_days(start, days):
+def is_business_day(d, extra=frozenset()):
+    return d.weekday() < 5 and not holidays.is_holiday(d) and d not in extra
+
+
+def _extra():
+    from .settings import extra_holidays
+
+    try:
+        return frozenset(extra_holidays())
+    except RuntimeError:  # sin contexto de aplicación
+        return frozenset()
+
+
+def add_business_days(start, days, extra=None):
+    extra = _extra() if extra is None else extra
     d = start
     while days > 0:
         d += timedelta(days=1)
-        if d.weekday() < 5:
+        if is_business_day(d, extra):
             days -= 1
     return d
 
 
-def business_days_between(start, end):
-    if end <= start:
-        return -sum(1 for i in range(1, (start - end).days + 1) if (end + timedelta(days=i)).weekday() < 5)
-    return sum(1 for i in range(1, (end - start).days + 1) if (start + timedelta(days=i)).weekday() < 5)
+def business_days_between(start, end, extra=None):
+    extra = _extra() if extra is None else extra
+    lo, hi, sign = (start, end, 1) if end > start else (end, start, -1)
+    return sign * sum(1 for i in range(1, (hi - lo).days + 1) if is_business_day(lo + timedelta(days=i), extra))
 
 
 def local_date(utc_naive):

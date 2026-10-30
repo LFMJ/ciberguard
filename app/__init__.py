@@ -8,7 +8,8 @@ from flask_login import current_user
 
 from config import Config
 from .extensions import csrf, db, login_manager
-from .models import PERSONAL_DATA, ROLES, SEVERITIES, SLA_HOURS, STATES, TYPES, User, utcnow
+from . import settings
+from .models import PERSONAL_DATA, ROLES, SEVERITIES, STATES, TYPES, User, utcnow
 
 
 def create_app(config_class=Config):
@@ -24,6 +25,7 @@ def create_app(config_class=Config):
     from .assessment import bp as assessment_bp
     from .auth import bp as auth_bp
     from .incidents import bp as incidents_bp
+    from .pwa import bp as pwa_bp
     from .training import bp as training_bp
 
     app.register_blueprint(auth_bp)
@@ -31,6 +33,7 @@ def create_app(config_class=Config):
     app.register_blueprint(assessment_bp)
     app.register_blueprint(training_bp)
     app.register_blueprint(admin_bp, url_prefix="/admin")
+    app.register_blueprint(pwa_bp)
 
     _register_template_helpers(app)
     _register_hooks(app)
@@ -72,7 +75,9 @@ def _register_template_helpers(app):
     @app.context_processor
     def labels():
         return {"TYPES": TYPES, "STATES": STATES, "SEVERITIES": SEVERITIES, "ROLES": ROLES,
-                "PERSONAL_DATA": PERSONAL_DATA, "SLA_HOURS": SLA_HOURS}
+                "PERSONAL_DATA": PERSONAL_DATA, "SLA_HOURS": settings.sla_hours(),
+                "COMPANY": settings.get("company_name"), "HAS_LOGO": bool(settings.get("logo")),
+                "INCIDENT_PCT": round(settings.incident_share() * 100)}
 
     app.jinja_env.globals["now_utc"] = utcnow
     # Versión de los archivos estáticos: cambia con cada despliegue y evita que el navegador use CSS/JS viejos.
@@ -85,8 +90,10 @@ def _register_template_helpers(app):
 
         if not current_user.is_authenticated or current_user.must_change_password:
             return {"nav_groups": None}
+        from . import notify
+
         return {"nav_groups": navigation.groups_for(current_user), "nav_active": navigation.is_active,
-                "nav_pending": navigation.pending_count(current_user)}
+                "nav_pending": navigation.pending_count(current_user), "nav_unread": notify.unread_count(current_user)}
 
     @app.template_filter("fecha_corta")
     def fecha_corta(value):
@@ -106,7 +113,7 @@ def _register_hooks(app):
         if (
             current_user.is_authenticated
             and current_user.must_change_password
-            and request.endpoint not in ("auth.change_password", "auth.logout", "static")
+            and request.endpoint not in ("auth.change_password", "auth.logout", "static", "pwa.manifest", "pwa.service_worker", "pwa.offline")
         ):
             return redirect(url_for("auth.change_password"))
 
