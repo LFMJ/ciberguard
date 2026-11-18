@@ -10,8 +10,25 @@
       {% for a in analysts %}<option value="{{ a.id }}"{% if a.id == i.assigned_to_id %} selected{% endif %}>{{ a.full_name }}</option>{% endfor %}
     </select></div>
   </div>
+  <div class="g3">
+    <div><label class="f" for="p{{ i.id }}">¿Datos personales?</label><select id="p{{ i.id }}" name="personal_data">{{ options(PERSONAL_DATA, i.personal_data) }}</select></div>
+    {% if i.personal_data == 'si' %}
+    <div><label class="f" for="r{{ i.id }}">Reportado a la SIC el</label><input id="r{{ i.id }}" name="sic_reported_at" type="date" value="{{ i.sic_reported_at.isoformat() if i.sic_reported_at else '' }}"></div>
+    {% endif %}
+  </div>
   <label class="f" for="n{{ i.id }}">Notas / acciones tomadas</label>
   <textarea id="n{{ i.id }}" name="notes" maxlength="5000" aria-describedby="nh{{ i.id }}">{{ i.notes }}</textarea>
   <p class="hint" id="nh{{ i.id }}">El empleado que reportó verá estas notas.</p>
+  <details class="lessons"{% if i.status in ('resuelto', 'descartado') or i.root_cause or i.lesson or i.ioc_sender or i.ioc_url %} open{% endif %}>
+    <summary>Indicadores y lecciones aprendidas</summary>
+    <div class="g2">
+      <div><label class="f" for="is{{ i.id }}">Remitente</label><input id="is{{ i.id }}" name="ioc_sender" maxlength="200" value="{{ i.ioc_sender }}"></div>
+      <div><label class="f" for="iu{{ i.id }}">Enlace</label><input id="iu{{ i.id }}" name="ioc_url" maxlength="500" value="{{ i.ioc_url }}" autocomplete="off" spellcheck="false"></div>
+    </div>
+    <label class="f" for="rc{{ i.id }}">Causa (¿por qué ocurrió?)</label>
+    <textarea id="rc{{ i.id }}" name="root_cause" maxlength="2000" rows="2" placeholder="Ej: el filtro de correo no bloqueaba dominios recién creados">{{ i.root_cause }}</textarea>
+    <label class="f" for="ls{{ i.id }}">Medida preventiva (¿qué cambiamos para que no se repita?)</label>
+    <textarea id="ls{{ i.id }}" name="lesson" maxlength="2000" rows="2" placeholder="Ej: activar la verificación en dos pasos en el correo">{{ i.lesson }}</textarea>
+  </details>
   <button class="btn" type="submit">Guardar cambios</button>
 </form>

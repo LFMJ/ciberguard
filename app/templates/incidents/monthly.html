@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Reporte mensual{% endblock %}
+{% block mainclass %}report{% endblock %}
+{% block content %}
+<form class="noprint filters card" method="get">
+  <div><label class="f" for="mes">Mes</label><select id="mes" name="mes">
+    {% for v, t in options %}<option value="{{ v }}"{% if v == selected %} selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+  <div class="actions"><button class="btn" type="submit">Ver</button><button class="btn ghost" type="button" data-print>Imprimir o guardar PDF</button></div>
+</form>
+<article class="sheet">
+  <header class="sheet-h">
+    <div><p class="eyebrow">CiberGuard · Reporte de ciberseguridad</p><h2>{{ label|capitalize }}</h2></div>
+    <div class="score {{ level(s.score_end) }}"><b>{{ s.score_end }}</b><span>riesgo al cierre</span></div>
+  </header>
+
+  <h3>Resumen</h3>
+  <p>En {{ label }} se reportaron <b>{{ s.reported }}</b> incidente{{ '' if s.reported == 1 else 's' }} y se cerraron <b>{{ s.closed }}</b>.
+    {% if s.avg_hours is not none %}El tiempo medio de solución fue de <b>{{ s.avg_hours }} horas</b>.{% endif %}
+    {% if s.sla.pct is not none %}El <b>{{ s.sla.pct }} %</b> se atendió dentro del plazo.{% endif %}
+    Al cierre del período quedaban <b>{{ s.open_at_end }}</b> incidente{{ '' if s.open_at_end == 1 else 's' }} abierto{{ '' if s.open_at_end == 1 else 's' }}.</p>
+  {% set p = s.prev %}
+  <table class="compare"><caption>Comparado con el mes anterior</caption><thead><tr><th>Indicador</th><th>Mes anterior</th><th>Este mes</th><th>Cambio</th></tr></thead>
+    <tbody>
+    {% for label, a, b, good_down in [('Incidentes reportados', p.reported, s.reported, true), ('Incidentes cerrados', p.closed, s.closed, false), ('Riesgo al cierre', p.score_end, s.score_end, true)] %}
+    {% set d = b - a %}
+    <tr><td>{{ label }}</td><td>{{ a }}</td><td>{{ b }}</td>
+      <td class="{{ 'better' if (d < 0 and good_down) or (d > 0 and not good_down) else ('worse' if d != 0 else '') }}">{{ ('+' if d > 0 else '') ~ d if d else '=' }}</td></tr>
+    {% endfor %}
+    </tbody></table>
+
+  <div class="g2">
+    <table><thead><tr><th>Por tipo</th><th>Cantidad</th></tr></thead>
+      <tbody>{% for t, n in s.by_type %}<tr><td>{{ t }}</td><td>{{ n }}</td></tr>{% endfor %}</tbody></table>
+    <table><thead><tr><th>Por severidad</th><th>Cantidad</th></tr></thead>
+      <tbody>{% for t, n in s.by_severity %}<tr><td>{{ t }}</td><td>{{ n }}</td></tr>{% endfor %}</tbody></table>
+  </div>
+
+  {% if s.highlights %}
+  <h3>Incidentes más relevantes</h3>
+  <table class="stack"><thead><tr><th>#</th><th>Incidente</th><th>Severidad</th><th>Estado</th></tr></thead>
+    <tbody>{% for i in s.highlights %}<tr><td class="hide-sm">{{ i.id }}</td><td class="primary">#{{ i.id }} · {{ i.title }}<br><span class="hint">{{ TYPES[i.type] }} · {{ i.created_at|fecha_corta }}</span></td><td data-label="Severidad">{{ SEVERITIES[i.severity] }}</td><td data-label="Estado">{{ STATES[i.status] }}</td></tr>{% endfor %}</tbody></table>
+  {% endif %}
+
+  {% if s.lessons %}
+  <h3>Lecciones aprendidas</h3>
+  <ul>{% for i in s.lessons %}<li><b>#{{ i.id }} {{ i.title }}:</b> {% if i.root_cause %}causa: {{ i.root_cause }}. {% endif %}{% if i.lesson %}Medida: {{ i.lesson }}{% endif %}</li>{% endfor %}</ul>
+  {% endif %}
+
+  <h3>Protección de datos personales</h3>
+  {% if s.personal_data %}
+  <p>{{ s.personal_data|length }} incidente(s) con posible exposición de datos personales (Ley 1581 de 2012):</p>
+  <ul>{% for i in s.personal_data %}<li>#{{ i.id }} {{ i.title }} — {% if i.sic_reported_at %}reportado a la SIC el {{ i.sic_reported_at|fecha_corta }}{% else %}<b>pendiente de reporte a la SIC</b>{% endif %}</li>{% endfor %}</ul>
+  {% else %}<p>No se reportaron incidentes con datos personales.</p>{% endif %}
+
+  <h3>Capacitación</h3>
+  <p>{% if s.attempts %}{{ s.people_trained }} persona(s) completaron la microcapacitación ({{ s.attempts }} intento(s)), con un promedio de <b>{{ s.quiz_avg }} %</b> de respuestas correctas.
+    {% else %}Nadie completó la microcapacitación este mes. Recomendamos programarla.{% endif %}</p>
+
+  <h3>Madurez y plan de acción</h3>
+  {% if s.assessment %}
+  <p>Última autoevaluación: <b>{{ s.assessment.score }} de 100</b> ({{ s.assessment.created_at|fecha_corta }}). Acciones prioritarias:</p>
+  <ol>{% for p in s.plan %}<li>{{ p.action }} <span class="hint">({{ p.area }}, esfuerzo {{ p.effort|lower }})</span></li>{% endfor %}</ol>
+  {% else %}<p>Aún no se ha hecho la autoevaluación de madurez.</p>{% endif %}
+
+  <p class="note">Generado el {{ generated|fecha }} · Riesgo de 0 (bajo) a 100 (alto).</p>
+</article>
+{% endblock %}

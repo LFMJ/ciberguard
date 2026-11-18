@@ -1,4 +1,5 @@
-from datetime import datetime, timezone
+import json
+from datetime import datetime, timedelta, timezone
 
 from flask_login import UserMixin
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -24,6 +25,10 @@ STATES = {
     "descartado": "Descartado",
 }
 SEVERITIES = {"baja": "Baja", "media": "Media", "alta": "Alta"}
+# Tiempo máximo para la primera atención según severidad (horas). Valores por defecto: la empresa los puede cambiar.
+SLA_HOURS = {"alta": 4, "media": 24, "baja": 72}
+PERSONAL_DATA = {"no": "No", "no_se": "No sé", "si": "Sí"}
+ALLOWED_UPLOADS = {"png": "image/png", "jpg": "image/jpeg", "pdf": "application/pdf"}
 OPEN_STATES = ("reportado", "en_revision")
 CLOSED_STATES = ("resuelto", "descartado")
 
@@ -48,6 +53,10 @@ class User(UserMixin, db.Model):
     locked_until = db.Column(db.DateTime, nullable=True)
     last_login_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    totp_secret = db.Column(db.String(64), nullable=True)
+    totp_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    totp_last_step = db.Column(db.Integer, nullable=True)  # evita reutilizar un código
+    theme = db.Column(db.String(10), nullable=False, default="oscuro")  # oscuro | claro
 
     incidents = db.relationship("Incident", back_populates="reporter", foreign_keys="Incident.reporter_id")
 
@@ -84,6 +93,18 @@ class Incident(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow, index=True)
     updated_at = db.Column(db.DateTime, nullable=False, default=utcnow, onupdate=utcnow)
     resolved_at = db.Column(db.DateTime, nullable=True)
+    first_response_at = db.Column(db.DateTime, nullable=True)
+    personal_data = db.Column(db.String(10), nullable=False, default="no_se")
+    sic_reported_at = db.Column(db.Date, nullable=True)
+    guided_json = db.Column(db.Text, nullable=False, default="{}")  # respuestas a las preguntas guiadas
+    suggested_severity = db.Column(db.String(10), nullable=True)
+    anonymous = db.Column(db.Boolean, nullable=False, default=False)
+    ioc_sender = db.Column(db.String(200), nullable=False, default="")  # remitente: correo, número o nombre
+    ioc_domain = db.Column(db.String(200), nullable=False, default="", index=True)
+    ioc_url = db.Column(db.String(500), nullable=False, default="")
+    playbook_json = db.Column(db.Text, nullable=False, default="[]")  # pasos completados del playbook
+    root_cause = db.Column(db.Text, nullable=False, default="")
+    lesson = db.Column(db.Text, nullable=False, default="")
 
     reporter = db.relationship("User", back_populates="incidents", foreign_keys=[reporter_id])
     assigned_to = db.relationship("User", foreign_keys=[assigned_to_id])
@@ -91,9 +112,43 @@ class Incident(db.Model):
         "AuditLog", back_populates="incident", order_by="AuditLog.created_at", lazy="dynamic"
     )
 
+    attachments = db.relationship("Attachment", back_populates="incident", order_by="Attachment.created_at")
+
     @property
     def is_open(self):
         return self.status in OPEN_STATES
+
+    @property
+    def sla_due(self):
+        from .settings import sla_hours
+
+        return self.created_at + timedelta(hours=sla_hours().get(self.severity, 24))
+
+    def sla_state(self, now=None):
+        """'cumplido', 'incumplido' (atendido tarde), 'vencido' (sin atender y fuera de plazo) o 'en_plazo'."""
+        now = now or utcnow()
+        if self.first_response_at:
+            return "cumplido" if self.first_response_at <= self.sla_due else "incumplido"
+        if self.status not in OPEN_STATES:
+            return "cumplido"
+        return "vencido" if now > self.sla_due else "en_plazo"
+
+    @property
+    def guided(self):
+        return json.loads(self.guided_json or "{}")
+
+    @property
+    def playbook_done(self):
+        return json.loads(self.playbook_json or "[]")
+
+    @property
+    def reporter_name(self):
+        """Nombre visible de quien reportó: nunca se muestra en un reporte anónimo."""
+        return "Reporte anónimo" if self.anonymous else self.reporter.full_name
+
+    @property
+    def needs_sic_report(self):
+        return self.personal_data == "si" and self.sic_reported_at is None and self.status != "descartado"
 
 
 class AuditLog(db.Model):
@@ -111,3 +166,137 @@ class AuditLog(db.Model):
 
     user = db.relationship("User")
     incident = db.relationship("Incident", back_populates="events")
+
+
+class Attachment(db.Model):
+    """Evidencia adjunta (capturas o PDF). El archivo vive en instance/uploads con nombre aleatorio."""
+
+    __tablename__ = "attachments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    incident_id = db.Column(db.Integer, db.ForeignKey("incidents.id"), nullable=False, index=True)
+    uploader_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    original_name = db.Column(db.String(200), nullable=False)
+    stored_name = db.Column(db.String(64), nullable=False, unique=True)
+    mime = db.Column(db.String(40), nullable=False)
+    size = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+    incident = db.relationship("Incident", back_populates="attachments")
+    uploader = db.relationship("User")
+
+    @property
+    def is_image(self):
+        return self.mime.startswith("image/")
+
+
+class Assessment(db.Model):
+    """Autoevaluación de madurez (basada en CIS Controls IG1)."""
+
+    __tablename__ = "assessments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow, index=True)
+    answers_json = db.Column(db.Text, nullable=False, default="{}")
+    score = db.Column(db.Integer, nullable=False, default=0)  # 0–100, más alto = más maduro
+
+    user = db.relationship("User")
+
+    @property
+    def answers(self):
+        return json.loads(self.answers_json or "{}")
+
+
+class QuizAttempt(db.Model):
+    """Resultado de una microcapacitación."""
+
+    __tablename__ = "quiz_attempts"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow, index=True)
+    correct = db.Column(db.Integer, nullable=False)
+    total = db.Column(db.Integer, nullable=False)
+
+    user = db.relationship("User")
+
+    @property
+    def pct(self):
+        return round(self.correct / self.total * 100) if self.total else 0
+
+
+class Setting(db.Model):
+    """Configuración de la empresa (clave → valor)."""
+
+    __tablename__ = "settings"
+
+    key = db.Column(db.String(64), primary_key=True)
+    value = db.Column(db.Text, nullable=False, default="")
+
+
+class Comment(db.Model):
+    """Conversación entre quien reportó y el equipo de seguridad."""
+
+    __tablename__ = "comments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    incident_id = db.Column(db.Integer, db.ForeignKey("incidents.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+    user = db.relationship("User")
+    incident = db.relationship("Incident", backref=db.backref("comments", order_by="Comment.created_at"))
+
+    @property
+    def author_name(self):
+        if self.incident.anonymous and self.user_id == self.incident.reporter_id:
+            return "Persona que reportó"
+        return self.user.full_name
+
+
+class Notification(db.Model):
+    __tablename__ = "notifications"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    incident_id = db.Column(db.Integer, db.ForeignKey("incidents.id"), nullable=True)
+    text = db.Column(db.String(300), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow, index=True)
+    read_at = db.Column(db.DateTime, nullable=True)
+
+    incident = db.relationship("Incident")
+
+
+class ActionItem(db.Model):
+    """Tarea del plan de acción: una recomendación de la autoevaluación con responsable y fecha."""
+
+    __tablename__ = "action_items"
+
+    id = db.Column(db.Integer, primary_key=True)
+    question_id = db.Column(db.String(40), nullable=False)
+    title = db.Column(db.String(300), nullable=False)
+    owner_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    due_date = db.Column(db.Date, nullable=False)
+    done_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+
+    owner = db.relationship("User", foreign_keys=[owner_id])
+
+    def is_overdue(self, today=None):
+        return self.done_at is None and self.due_date < (today or utcnow().date())
+
+
+class ReminderLog(db.Model):
+    """Registro de recordatorios periódicos marcados como hechos."""
+
+    __tablename__ = "reminder_logs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(40), nullable=False, index=True)
+    done_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+
+    user = db.relationship("User")

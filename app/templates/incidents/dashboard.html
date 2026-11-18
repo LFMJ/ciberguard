@@ -1,36 +1,162 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon with context %}
+{% from "_macros.html" import csrf with context %}
 {% block title %}Panel de riesgo{% endblock %}
 {% macro bars(title, rows) %}
 <section class="card">
   <h3 class="mt0">{{ title }}</h3>
   {% for label, n, pct in rows %}
   <div class="row"><span>{{ label }}</span>
-    <svg class="tr" viewBox="0 0 100 14" preserveAspectRatio="none" role="img" aria-label="{{ label }}: {{ n }}"><rect class="trbg" width="100" height="14"/><rect class="fl" width="{{ pct }}" height="14"/></svg>
+    <svg class="tr" viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="{{ label }}: {{ n }}"><rect class="trbg" width="100" height="10"/><rect class="fl" width="{{ pct }}" height="10"/></svg>
     <b>{{ n }}</b></div>
   {% endfor %}
 </section>
 {% endmacro %}
 {% block content %}
-<h2>Panel de riesgo</h2>
-{% set L = 314.159 %}
-<section class="card dial">
-  <svg viewBox="0 0 240 140" role="img" aria-label="Nivel de riesgo {{ r.score }} de 100">
-    <path d="M20 120 A100 100 0 0 1 220 120" fill="none" class="arcbg" stroke-width="20" stroke-linecap="round"/>
-    <path class="arc {{ r.level }}" id="arc" d="M20 120 A100 100 0 0 1 220 120" fill="none" stroke-width="20" stroke-linecap="round"
-          stroke-dasharray="{{ L }}" stroke-dashoffset="{{ L * (1 - r.score / 100) }}" data-len="{{ L }}" data-score="{{ r.score }}"/>
-    <text x="120" y="112" text-anchor="middle" font-size="40" font-weight="700" class="svgink">{{ r.score }}</text>
-    <text x="120" y="132" text-anchor="middle" font-size="12" class="svgmut">de 100</text>
-  </svg>
-  <div class="lvl {{ r.level }}">{{ r.title }}</div>
-  <p>{{ r.message }}</p>
-</section>
-<div class="kpis">
-  <div class="kpi"><b>{{ r.open }}</b>Incidentes abiertos</div>
-  <div class="kpi"><b>{{ r.stale }}</b>Sin atender (+48 h)</div>
-  <div class="kpi"><b>{{ r.total }}</b>Reportes totales</div>
-  <div class="kpi"><b>{{ '%d h'|format(r.avg_hours) if r.avg_hours is not none else '—' }}</b>Tiempo medio de solución</div>
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Estado de la organización · {{ now_utc()|fecha_corta }}</p>
+    <h2>Panel de riesgo</h2>
+  </div>
+  <div class="actions">
+    <a class="btn ghost" href="{{ url_for('incidents.monthly_report') }}">Reporte mensual</a>
+    <a class="btn" href="{{ url_for('incidents.report') }}">{{ icon('plus') }}Reportar incidente</a>
+  </div>
 </div>
-{{ bars('Incidentes por estado', r.by_status) }}
-{{ bars('Incidentes por tipo', r.by_type) }}
-<p class="note">Puntaje = (alta×10 + media×5 + baja×2 de los abiertos + 5 por cada uno sin atender &gt;48 h) × 3, máximo 100.</p>
+
+<div class="hero">
+  <section class="card" aria-labelledby="rg">
+    <div class="risk-top">
+      <h3 id="rg">Riesgo global</h3>
+      <span class="pill {{ r.level }}">{{ r.title }}</span>
+    </div>
+    <div class="risk-num"><b>{{ r.score }}</b><span>/100</span>
+      {% if delta.delta %}<span class="delta {{ 'up' if delta.delta > 0 else 'down' }}" title="Hace {{ delta.days }} días: {{ delta.before }}">{{ '▲' if delta.delta > 0 else '▼' }} {{ delta.delta|abs }} <small>vs. hace {{ delta.days }} días</small></span>
+      {% else %}<span class="delta same">= <small>igual que hace {{ delta.days }} días</small></span>{% endif %}</div>
+    <p class="risk-msg">{{ r.message }}</p>
+    {% set segs = [(0, 25, 'bajo'), (25, 60, 'medio'), (60, 100, 'alto')] %}
+    <svg class="scale" viewBox="0 0 100 12" preserveAspectRatio="none" role="img" data-score="{{ r.score }}"
+         aria-label="Escala de riesgo: {{ r.score }} de 100. Bajo hasta 24, medio de 25 a 59, alto desde 60.">
+      {% for a, z, name in segs %}
+      <rect class="bg-{{ name }}" x="{{ a + (0.6 if a else 0) }}" width="{{ z - a - 1.2 }}" height="12"/>
+      {% set fill = [[r.score, z]|min - a, 0]|max %}
+      {% if fill > 0 %}<rect class="fg-{{ name }}" x="{{ a + (0.6 if a else 0) }}" width="{{ [fill, z - a - 1.2]|min }}" height="12"/>{% endif %}
+      {% endfor %}
+    </svg>
+    <div class="scale-labels" aria-hidden="true"><span>0 bajo</span><span>25 medio</span><span><span>60 alto</span><span>100</span></span></div>
+    <div class="parts">
+      <div><b>{{ r.incident_score }}</b><span>Riesgo por incidentes · {{ INCIDENT_PCT }} %</span></div>
+      {% if r.maturity is not none %}
+      <div><b>{{ r.maturity }}</b><span>Madurez CIS IG1 · {{ 100 - INCIDENT_PCT }} % · <a href="{{ url_for('assessment.overview') }}">ver</a></span></div>
+      {% else %}
+      <div><b>—</b><span>Madurez sin evaluar · <a href="{{ url_for('assessment.new') }}">evaluar</a></span></div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="att">
+    <h3 id="att" class="mt0">Requiere atención ahora</h3>
+    <ul class="attention">
+      {% for i in r.attention %}{% set st = i.sla_state() %}
+      <li class="{{ 'over' if st == 'vencido' }}">
+        <div class="what">
+          <p class="tag {{ 'wa' if st != 'vencido' and i.status == 'en_revision' }}">
+            {% if st == 'vencido' %}Vencido · {{ SEVERITIES[i.severity] }} · plazo {{ SLA_HOURS[i.severity] }} h{% else %}{{ STATES[i.status] }} · {{ SEVERITIES[i.severity] }}{% endif %}</p>
+          <p class="t"><a href="{{ url_for('incidents.detail', incident_id=i.id) }}">#{{ i.id }} {{ i.title }}</a></p>
+          <p class="s">{{ i.reporter_name }} · {% if st == 'vencido' %}sin atender hace {{ (now_utc() - i.created_at)|horas }}{% elif i.assigned_to %}asignado a {{ i.assigned_to.full_name }}{% else %}reportado {{ i.created_at|fecha }}{% endif %}</p>
+        </div>
+        {% if st == 'vencido' and current_user.role == 'seguridad' %}<a class="go" href="{{ url_for('incidents.detail', incident_id=i.id) }}">Atender</a>{% endif %}
+      </li>
+      {% endfor %}
+      {% if r.plan and r.attention|length < 3 %}{% set p = r.plan[0] %}
+      <li>
+        <div class="what">
+          <p class="tag">Autoevaluación · {{ 'Crítico' if p.weight == 3 else 'Importante' }}</p>
+          <p class="t"><a href="{{ url_for('assessment.overview') }}">{{ p.action.split('. ')[0] }}</a></p>
+          <p class="s">{{ p.area }} · {{ p.cis }} · esfuerzo {{ p.effort|lower }}</p>
+        </div>
+      </li>
+      {% endif %}
+      {% if not r.attention and not r.plan %}<li><p class="s">No hay incidentes abiertos ni acciones pendientes.</p></li>{% endif %}
+    </ul>
+  </section>
+</div>
+
+<div class="kpis six">
+  <div class="kpi"><b>{{ r.open }}</b>Incidentes abiertos</div>
+  <div class="kpi{{ ' alert' if r.overdue }}"><b>{{ r.overdue }}</b><a href="{{ url_for('incidents.manage', sla='vencido') }}">Fuera del tiempo de atención</a></div>
+  <div class="kpi"><b>{% if r.sla.pct is not none %}{{ r.sla.pct }}<small>%</small>{% else %}—{% endif %}</b>Atendidos a tiempo</div>
+  <div class="kpi"><b>{% if r.avg_hours is not none %}{{ r.avg_hours }}<small>h</small>{% else %}—{% endif %}</b>Tiempo medio de solución</div>
+  <div class="kpi"><b>{{ r.training.coverage }}<small>%</small></b><a href="{{ url_for('training.team') }}">Equipo capacitado (90 días)</a></div>
+  <div class="kpi{{ ' alert' if r.sic_pending }}"><b>{{ r.sic_pending }}</b><a href="{{ url_for('incidents.manage', datos='si') }}">Datos personales sin reportar a la SIC</a></div>
+</div>
+
+{% set pts = r.trend %}{% set n = pts|length %}
+{% set W, H, X0, Y0, PH = 560, 240, 46, 22, 170 %}
+<div class="split">
+  <section class="card">
+    <h3 class="mt0">Riesgo por incidentes · últimas {{ n }} semanas</h3>
+    <svg class="trend" viewBox="0 0 {{ W }} {{ H }}" role="img" aria-label="Evolución semanal del riesgo por incidentes; detalle en la tabla siguiente">
+      {% for g in (0, 25, 60, 100) %}{% set gy = Y0 + (100 - g) / 100 * PH %}
+      <line x1="{{ X0 }}" x2="{{ W - 12 }}" y1="{{ gy }}" y2="{{ gy }}" class="grid{{ ' base' if g == 0 }}"/>
+      <text x="{{ X0 - 8 }}" y="{{ gy + 4 }}" text-anchor="end" class="axis">{{ g }}</text>
+      {% endfor %}
+      {% set step = (W - X0 - 40) / (n - 1) %}
+      <polyline class="line" points="{% for p in pts %}{{ X0 + 14 + loop.index0 * step }},{{ Y0 + (100 - p.score) / 100 * PH }} {% endfor %}"/>
+      {% for p in pts %}{% set cx = X0 + 14 + loop.index0 * step %}{% set cy = Y0 + (100 - p.score) / 100 * PH %}
+      <g class="pt" tabindex="0">
+        <title>Semana al {{ p.t|fecha_corta }}: {{ p.score }} de 100</title>
+        <circle cx="{{ cx }}" cy="{{ cy }}" r="16" class="hit"/>
+        <circle cx="{{ cx }}" cy="{{ cy }}" r="5" class="dot"/>
+        {% if loop.last %}<text x="{{ cx + 10 }}" y="{{ cy - 14 }}" text-anchor="end" class="val">{{ p.score }}</text>{% endif %}
+        {% if loop.index0 % 2 == (n - 1) % 2 %}<text x="{{ cx + 10 if loop.last else cx }}" y="{{ H - 8 }}" text-anchor="{{ 'end' if loop.last else 'middle' }}" class="axis">{{ p.t.strftime('%d/%m') }}</text>{% endif %}
+      </g>
+      {% endfor %}
+    </svg>
+    <p class="hint">Desde 25 el riesgo es medio y desde 60, alto.</p>
+    <details><summary>Ver como tabla</summary>
+      <table><thead><tr><th>Semana al</th><th>Riesgo por incidentes</th></tr></thead>
+      <tbody>{% for p in pts %}<tr><td>{{ p.t|fecha_corta }}</td><td>{{ p.score }}</td></tr>{% endfor %}</tbody></table>
+    </details>
+  </section>
+
+  <section class="card">
+    <h3 class="mt0">Plan de acción prioritario</h3>
+    {% if tasks.total %}<p class="taskline">{{ icon('tasks') }} {{ tasks.done }} de {{ tasks.total }} tareas hechas{% if tasks.overdue %} · <b class="over">{{ tasks.overdue }} vencida{{ '' if tasks.overdue == 1 else 's' }}</b>{% endif %} · <a href="{{ url_for('assessment.overview') }}#tareas">ver tareas</a></p>{% endif %}
+    {% if r.plan %}
+    <ol class="plan">{% for p in r.plan %}<li><span><b>{{ p.action.split('. ')[0] }}</b><span class="hint">{{ p.area }} · {{ p.cis }} · esfuerzo {{ p.effort|lower }}</span></span></li>{% endfor %}</ol>
+    <p><a href="{{ url_for('assessment.overview') }}">Ver el plan completo</a></p>
+    {% else %}
+    <p class="hint">Haz la <a href="{{ url_for('assessment.new') }}">autoevaluación</a> para recibir un plan de acción.</p>
+    {% endif %}
+  </section>
+</div>
+
+{% set due = reminders|selectattr('due')|list %}
+<section class="card" id="recordatorios">
+  <div class="risk-top"><h3 class="mt0">Recordatorios</h3><span class="pill {{ 'medio' if due else 'bajo' }}">{{ due|length }} pendiente{{ '' if due|length == 1 else 's' }}</span></div>
+  <ul class="reminders">
+    {% for m in reminders %}
+    <li class="{{ 'due' if m.due }}">
+      <div><b>{{ m.title }}</b>
+        <span class="hint">{{ m.why }} ·
+          {% if m.key == 'capacitacion' %}{{ m.pending }} persona{{ '' if m.pending == 1 else 's' }} pendiente{{ '' if m.pending == 1 else 's' }}
+          {% elif m.last %}última vez {{ m.last|fecha_corta }} · {{ 'tocaba el ' if m.due else 'próxima: ' }}{{ m.next|fecha_corta }}
+          {% else %}nunca registrado{% endif %}</span></div>
+      {% if m.kind == 'manual' %}
+      <form method="post" action="{{ url_for('assessment.reminder_done', key=m.key) }}">{{ csrf() }}<input type="hidden" name="next" value="{{ url_for('incidents.dashboard') }}#recordatorios"><button class="btn ghost sm" type="submit">Hecho</button></form>
+      {% elif m.key == 'autoevaluacion' and m.due %}<a class="btn ghost sm" href="{{ url_for('assessment.new') }}">Actualizar</a>
+      {% elif m.key == 'capacitacion' and m.due %}<a class="btn ghost sm" href="{{ url_for('training.team') }}">Ver equipo</a>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+
+<div class="split">
+  {{ bars('Incidentes por estado', r.by_status) }}
+  {{ bars('Incidentes por tipo', r.by_type) }}
+</div>
+<p class="note">Riesgo por incidentes = (alta×10 + media×5 + baja×2 de los abiertos + 5 por cada uno sin atender dentro del plazo) × 3, máx. 100.
+  Plazos de atención: alta {{ sla_hours.alta }} h, media {{ sla_hours.media }} h, baja {{ sla_hours.baja }} h.
+  {% if r.maturity is not none %}Riesgo global = {{ INCIDENT_PCT }} % riesgo por incidentes + {{ 100 - INCIDENT_PCT }} % (100 − madurez).{% endif %}</p>
 {% endblock %}

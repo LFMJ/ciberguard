@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Resultado de la capacitación{% endblock %}
+{% block content %}
+<h2>Tu resultado: {{ attempt.correct }} de {{ attempt.total }}</h2>
+<section class="card {{ 'ok' if attempt.pct >= 75 else 'warn' }}-card">
+  {% if attempt.pct == 100 %}<p>¡Perfecto! Detectaste todas las trampas. Comparte lo aprendido con tu equipo.</p>
+  {% elif attempt.pct >= 75 %}<p>¡Muy bien! Revisa abajo las que fallaste: los atacantes aprovechan justo esos descuidos.</p>
+  {% else %}<p>Hay varias señales que conviene repasar. Lee las explicaciones e inténtalo de nuevo en unos días.</p>{% endif %}
+</section>
+{% for q in quiz %}{% set ok = picks[q.id] == q.answer %}
+<article class="card qres {{ 'good' if ok else 'bad' }}">
+  <p class="meta">Situación {{ loop.index }} · {{ '✓ Correcta' if ok else '✗ Incorrecta' }}</p>
+  <p>{{ q.scenario }}</p>
+  {% if not ok %}<p>Elegiste: <s>{{ q.options[picks[q.id]] }}</s></p>{% endif %}
+  <p><b>Respuesta correcta:</b> {{ q.options[q.answer] }}</p>
+  <p class="hint">{{ q.why }}</p>
+</article>
+{% endfor %}
+<a class="btn" href="{{ url_for('training.quiz') }}">Volver a intentarlo</a>
+{% endblock %}

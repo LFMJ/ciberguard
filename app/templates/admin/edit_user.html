@@ -28,11 +28,17 @@
   <dl class="facts">
     <dt>Creado</dt><dd>{{ user.created_at|fecha }}</dd>
     <dt>Último ingreso</dt><dd>{{ user.last_login_at|fecha }}</dd>
+    <dt>Verificación en dos pasos</dt><dd>{{ 'Activada' if user.totp_enabled else 'No activada' }}</dd>
     <dt>Bloqueado hasta</dt><dd>{{ user.locked_until|fecha if user.is_locked() else 'No está bloqueado' }}</dd>
   </dl>
   {% if user.id != current_user.id %}
   <form method="post" class="inline" data-confirm="¿Generar una nueva contraseña temporal para {{ user.full_name }}? La actual dejará de funcionar.">
     {{ csrf() }}<input type="hidden" name="action" value="reset"><button class="btn ghost" type="submit">Restablecer contraseña</button>
+  </form>
+  {% endif %}
+  {% if user.totp_enabled and user.id != current_user.id %}
+  <form method="post" class="inline" data-confirm="¿Quitar la verificación en dos pasos de {{ user.full_name }}? Úsalo solo si perdió su celular y verificaste su identidad.">
+    {{ csrf() }}<input type="hidden" name="action" value="reset_2fa"><button class="btn ghost" type="submit">Quitar verificación en dos pasos</button>
   </form>
   {% endif %}
   {% if user.is_locked() %}

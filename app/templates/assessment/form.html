@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}Nueva autoevaluación{% endblock %}
+{% block content %}
+<h2>Autoevaluación de madurez</h2>
+<p class="hint">Responde pensando en cómo está la empresa hoy, no en cómo debería estar. «No sé» cuenta como «No»: si no lo sabes, probablemente no se está controlando.</p>
+<form method="post">
+  {{ csrf() }}
+  {% for area, qs in groups.items() %}
+  <fieldset class="card">
+    <legend>{{ area }}</legend>
+    {% for qid, _a, cis, weight, text, _rec, _e in qs %}
+    <div class="q" role="radiogroup" aria-labelledby="l-{{ qid }}">
+      <p id="l-{{ qid }}">{{ text }} <span class="hint">({{ cis }}{{ ' · crítico' if weight == 3 }})</span></p>
+      <div class="choices">
+        {% for v, t in {'si':'Sí','parcial':'En parte','no':'No','no_se':'No sé'}.items() %}
+        <label class="choice"><input type="radio" name="{{ qid }}" value="{{ v }}"{% if answers.get(qid) == v %} checked{% endif %} required> {{ t }}</label>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </fieldset>
+  {% endfor %}
+  <button class="btn" type="submit">Calcular madurez y plan de acción</button>
+</form>
+{% endblock %}

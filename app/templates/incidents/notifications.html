@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}Notificaciones{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h2>Notificaciones</h2></div>
+  {% if items|selectattr('read_at', 'none')|list %}
+  <form method="post" class="actions">{{ csrf() }}<button class="btn ghost" type="submit">Marcar todas como leídas</button></form>
+  {% endif %}
+</div>
+{% if items %}
+<ul class="notes card">
+  {% for n in items %}
+  <li class="{{ 'unread' if not n.read_at }}">
+    {% if n.incident_id %}<a href="{{ url_for('incidents.detail', incident_id=n.incident_id) }}">{{ n.text }}</a>{% else %}{{ n.text }}{% endif %}
+    <span class="hint">{{ n.created_at|fecha }}{% if not n.read_at %} · <b>nueva</b>{% endif %}</span>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="empty card">No tienes notificaciones. Aquí verás cuando seguridad responda tus reportes o llegue un incidente nuevo.</p>
+{% endif %}
+{% endblock %}

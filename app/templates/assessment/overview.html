@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon with context %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}Autoevaluación{% endblock %}
+{% block content %}
+<h2>Autoevaluación de madurez</h2>
+<p class="hint">Basada en los <b>CIS Controls v8, grupo IG1</b>: las salvaguardas mínimas recomendadas para organizaciones pequeñas. Repítela cada trimestre para medir el avance.</p>
+{% if latest %}
+{% set lv = level(latest.score) %}
+<section class="card maturity">
+  <div class="score m-{{ lv[0] }}"><b>{{ latest.score }}</b><span>de 100</span></div>
+  <div>
+    <h3 class="mt0">{{ lv[1] }}</h3>
+    <p>Última evaluación: {{ latest.created_at|fecha }} por {{ latest.user.full_name }}.
+    {% if tasks %}
+<section class="card tablewrap" id="tareas">
+  <h3 class="mt0 pad">Tareas del plan ({{ tasks|selectattr('done_at')|list|length }} de {{ tasks|length }} hechas)</h3>
+  <table class="stack">
+    <thead><tr><th>Tarea</th><th>Responsable</th><th>Fecha límite</th><th>Estado</th><th><span class="sr">Acciones</span></th></tr></thead>
+    <tbody>
+    {% for t in tasks %}
+    <tr{% if t.done_at %} class="off"{% endif %}>
+      <td class="primary">{{ t.title }}</td>
+      <td data-label="Responsable">{{ t.owner.full_name }}</td>
+      <td data-label="Fecha límite">{{ t.due_date|fecha_corta }}</td>
+      <td data-label="Estado">{% if t.done_at %}<span class="b baja">Hecha {{ t.done_at|fecha_corta }}</span>{% elif t.is_overdue(today) %}<span class="b alta">Vencida</span>{% else %}<span class="b media">Pendiente</span>{% endif %}</td>
+      <td class="row-action">
+        <form method="post" action="{{ url_for('assessment.update_task', task_id=t.id) }}" class="inline">{{ csrf() }}
+          {% if t.done_at %}<button class="link" name="action" value="reopen">Reabrir</button>{% else %}<button class="btn ghost sm" name="action" value="done">Marcar hecha</button>{% endif %}</form>
+        <form method="post" action="{{ url_for('assessment.update_task', task_id=t.id) }}" class="inline" data-confirm="¿Eliminar esta tarea?">{{ csrf() }}<button class="link" name="action" value="delete">Eliminar</button></form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+{% if history|length > 1 %}{% set prev = history[1].score %}
+      {% if latest.score > prev %}Mejoró {{ latest.score - prev }} puntos frente a la anterior.{% elif latest.score < prev %}Bajó {{ prev - latest.score }} puntos frente a la anterior.{% else %}Igual que la anterior.{% endif %}
+    {% endif %}</p>
+    <a class="btn" href="{{ url_for('assessment.new') }}">Actualizar autoevaluación</a>
+  </div>
+</section>
+<section class="card">
+  <h3 class="mt0">Resultado por área</h3>
+  {% for a, pct in areas %}
+  <div class="row"><span>{{ a }}</span>
+    <svg class="tr" viewBox="0 0 100 14" preserveAspectRatio="none" role="img" aria-label="{{ a }}: {{ pct }} %"><rect class="trbg" width="100" height="14"/><rect class="fl" width="{{ pct }}" height="14"/></svg>
+    <b>{{ pct }}</b></div>
+  {% endfor %}
+</section>
+<section class="card" id="plan">
+  <h3 class="mt0">Plan de acción ({{ plan|length }} pendiente{{ '' if plan|length == 1 else 's' }})</h3>
+  {% if plan %}
+  <p class="hint">Ordenado por impacto: primero lo crítico que no se cumple. Empieza por las de esfuerzo bajo.</p>
+  <ol class="plan">
+    {% for p in plan %}
+    <li><b>{{ p.action }}</b>
+      <span class="hint">{{ p.area }} · {{ p.cis }} · {{ 'Crítico' if p.weight == 3 else 'Importante' if p.weight == 2 else 'Recomendado' }} · esfuerzo {{ p.effort|lower }} · hoy: «{{ {'no':'No','parcial':'En parte','no_se':'No sé'}[p.answer] }}»</span>
+      {% set t = open_by_q.get(p.id) %}
+      {% if t %}<span class="assigned">{{ icon('tasks') }} Asignada a {{ t.owner.full_name }} · vence {{ t.due_date|fecha_corta }}{% if t.is_overdue(today) %} · <b class="over">vencida</b>{% endif %}</span>
+      {% else %}
+      <form method="post" action="{{ url_for('assessment.create_task') }}" class="assign">
+        {{ csrf() }}<input type="hidden" name="question_id" value="{{ p.id }}">
+        <label class="sr" for="o-{{ p.id }}">Responsable</label>
+        <select id="o-{{ p.id }}" name="owner_id">{% for o in owners %}<option value="{{ o.id }}"{% if o.id == current_user.id %} selected{% endif %}>{{ o.full_name }}</option>{% endfor %}</select>
+        <label class="sr" for="d-{{ p.id }}">Fecha límite</label>
+        <input id="d-{{ p.id }}" name="due_date" type="date" value="{{ default_due }}" min="{{ today.isoformat() }}">
+        <button class="btn ghost" type="submit">Asignar</button>
+      </form>
+      {% endif %}</li>
+    {% endfor %}
+  </ol>
+  {% else %}<p>¡Cumplen todas las salvaguardas básicas! Mantengan la revisión trimestral.</p>{% endif %}
+</section>
+{% if tasks %}
+<section class="card tablewrap" id="tareas">
+  <h3 class="mt0 pad">Tareas del plan ({{ tasks|selectattr('done_at')|list|length }} de {{ tasks|length }} hechas)</h3>
+  <table class="stack">
+    <thead><tr><th>Tarea</th><th>Responsable</th><th>Fecha límite</th><th>Estado</th><th><span class="sr">Acciones</span></th></tr></thead>
+    <tbody>
+    {% for t in tasks %}
+    <tr{% if t.done_at %} class="off"{% endif %}>
+      <td class="primary">{{ t.title }}</td>
+      <td data-label="Responsable">{{ t.owner.full_name }}</td>
+      <td data-label="Fecha límite">{{ t.due_date|fecha_corta }}</td>
+      <td data-label="Estado">{% if t.done_at %}<span class="b baja">Hecha {{ t.done_at|fecha_corta }}</span>{% elif t.is_overdue(today) %}<span class="b alta">Vencida</span>{% else %}<span class="b media">Pendiente</span>{% endif %}</td>
+      <td class="row-action">
+        <form method="post" action="{{ url_for('assessment.update_task', task_id=t.id) }}" class="inline">{{ csrf() }}
+          {% if t.done_at %}<button class="link" name="action" value="reopen">Reabrir</button>{% else %}<button class="btn ghost sm" name="action" value="done">Marcar hecha</button>{% endif %}</form>
+        <form method="post" action="{{ url_for('assessment.update_task', task_id=t.id) }}" class="inline" data-confirm="¿Eliminar esta tarea?">{{ csrf() }}<button class="link" name="action" value="delete">Eliminar</button></form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+{% if history|length > 1 %}
+<section class="card tablewrap"><table class="stack"><thead><tr><th>Fecha</th><th>Responsable</th><th>Madurez</th></tr></thead>
+  <tbody>{% for h in history %}<tr><td class="primary">{{ h.created_at|fecha }}</td><td data-label="Responsable">{{ h.user.full_name }}</td><td data-label="Madurez">{{ h.score }} de 100</td></tr>{% endfor %}</tbody></table></section>
+{% endif %}
+{% else %}
+<section class="card empty">
+  <p>Aún no han hecho la autoevaluación. Son {{ n_questions }} preguntas y toma unos 10 minutos.</p>
+  <p>Al terminar recibirás un puntaje de madurez y un plan de acción priorizado, y el panel de riesgo lo tendrá en cuenta.</p>
+  <a class="btn" href="{{ url_for('assessment.new') }}">Empezar autoevaluación</a>
+</section>
+{% endif %}
+{% endblock %}

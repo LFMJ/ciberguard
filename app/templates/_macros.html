@@ -1,3 +1,10 @@
+{% macro filepick(id, label) %}
+<div class="filepick">
+  <input id="{{ id }}" name="evidence" type="file" accept="image/png,image/jpeg,application/pdf" multiple aria-describedby="{{ id }}-h" data-filepick>
+  <label for="{{ id }}"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+    <span data-filepick-text>{{ label }}</span></label>
+</div>
+{% endmacro %}
 {% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}
 {% macro options(labels, selected, blank=None) %}
 {% if blank %}<option value="">{{ blank }}</option>{% endif %}
@@ -16,3 +23,11 @@
 </nav>
 {% endif %}
 {% endmacro %}
+{% macro sla(i) %}
+{% set st = i.sla_state() %}
+{% if st == 'vencido' %}<span class="b alta">⏱ Sin atender hace {{ (now_utc() - i.sla_due)|horas }}</span>
+{% elif st == 'en_plazo' %}<span class="b media">⏱ Atender antes de {{ (i.sla_due - now_utc())|horas }}</span>
+{% elif st == 'incumplido' %}<span class="b descartado">Atendido fuera de plazo</span>
+{% endif %}
+{% endmacro %}
+{% macro pdata(i) %}{% if i.personal_data == 'si' %}<span class="b dp">🔒 Datos personales{% if i.sic_reported_at %} · reportado a la SIC{% endif %}</span>{% endif %}{% endmacro %}

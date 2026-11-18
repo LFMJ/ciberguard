@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}Seguridad de la cuenta{% endblock %}
+{% block content %}
+<h2>Seguridad de la cuenta</h2>
+<section class="card">
+  <h3 class="mt0">Verificación en dos pasos</h3>
+  {% if current_user.totp_enabled %}
+    <p><span class="b baja">Activada</span> Al ingresar te pediremos tu contraseña y un código de tu celular.</p>
+    <form method="post" class="g2" data-confirm="¿Desactivar la verificación en dos pasos? Tu cuenta quedará protegida solo por la contraseña.">
+      {{ csrf() }}<input type="hidden" name="action" value="disable">
+      <div><label class="f" for="password">Confirma tu contraseña para desactivarla</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required></div>
+      <div class="actions-end"><button class="btn ghost" type="submit">Desactivar</button></div>
+    </form>
+  {% elif pending %}
+    <ol class="steps">
+      <li>Instala en tu celular <b>Google Authenticator</b> o <b>Microsoft Authenticator</b> (gratis).</li>
+      <li>En la app, toca <b>+</b> y escanea este código:
+        <div class="qr"><img src="{{ qr }}" alt="Código QR para configurar CiberGuard en la app de autenticación" width="220" height="220"></div>
+        <p class="hint">¿No puedes escanear? Elige «Ingresar clave de configuración» y escribe: <code>{{ secret_txt }}</code></p></li>
+      <li>Escribe el código de 6 dígitos que muestra la app:</li>
+    </ol>
+    <form method="post">
+      {{ csrf() }}<input type="hidden" name="action" value="confirm">
+      <label class="f" for="code">Código</label>
+      <input id="code" name="code" inputmode="numeric" maxlength="7" autocomplete="one-time-code" class="otp" required autofocus>
+      <button class="btn" type="submit">Activar</button>
+    </form>
+    <form method="post" class="inline">{{ csrf() }}<input type="hidden" name="action" value="cancel"><button class="link" type="submit">Cancelar</button></form>
+  {% else %}
+    <p><span class="b alta">Desactivada</span> Si alguien obtiene tu contraseña, podría entrar a tu cuenta.</p>
+    <p>Con la verificación en dos pasos, además de la contraseña se pide un código que cambia cada 30 segundos en tu celular. Es la medida que más ataques detiene.</p>
+    <form method="post">{{ csrf() }}<input type="hidden" name="action" value="start"><button class="btn" type="submit">Activar verificación en dos pasos</button></form>
+  {% endif %}
+</section>
+<section class="card">
+  <h3 class="mt0">Contraseña</h3>
+  <p><a href="{{ url_for('auth.change_password') }}">Cambiar contraseña</a></p>
+</section>
+{% endblock %}

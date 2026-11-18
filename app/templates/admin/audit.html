@@ -11,12 +11,12 @@
   <div class="actions"><button class="btn" type="submit">Filtrar</button></div>
 </form>
 <div class="card tablewrap">
-<table>
+<table class="stack log">
   <thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Detalle</th><th>IP</th></tr></thead>
   <tbody>
   {% for e in page.items %}
-  <tr><td class="nowrap">{{ e.created_at|fecha }}</td><td>{{ e.user.username if e.user else '—' }}</td><td>{{ e.action.replace('_', ' ') }}</td>
-      <td>{% if e.incident_id %}<a href="{{ url_for('incidents.detail', incident_id=e.incident_id) }}">{{ e.detail }}</a>{% else %}{{ e.detail }}{% endif %}</td><td>{{ e.ip or '' }}</td></tr>
+  <tr><td class="nowrap meta-sm" data-label="Fecha">{{ e.created_at|fecha }}</td><td class="meta-sm" data-label="Usuario">{{ e.user.username if e.user else '—' }}</td><td class="lead-sm" data-label="Acción">{{ e.action.replace('_', ' ')|capitalize }}</td>
+      <td class="detail-sm" data-label="Detalle">{% if e.incident_id %}<a href="{{ url_for('incidents.detail', incident_id=e.incident_id) }}">{{ e.detail }}</a>{% else %}{{ e.detail }}{% endif %}</td><td class="meta-sm" data-label="IP">{{ e.ip or '—' }}</td></tr>
   {% else %}
   <tr><td colspan="5" class="empty">Sin registros.</td></tr>
   {% endfor %}

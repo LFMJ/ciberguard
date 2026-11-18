@@ -4,8 +4,15 @@ import secrets
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
+import os
+from datetime import date
+
+from flask import current_app, send_file
+from flask_login import login_required
+
+from . import alerts, holidays, settings, uploads
 from .extensions import db
-from .models import ROLES, AuditLog, User
+from .models import ROLES, SEVERITIES, AuditLog, User
 from .security import audit, roles_required
 
 bp = Blueprint("admin", __name__)
@@ -121,6 +128,15 @@ def edit_user(user_id):
                 audit("contrasena_restablecida", user.username)
                 db.session.commit()
 
+        elif action == "reset_2fa":
+            if is_self:
+                flash("Para tu propia cuenta usa «Seguridad de la cuenta».", "err")
+            else:
+                user.totp_secret, user.totp_enabled, user.totp_last_step = None, False, None
+                audit("2fa_restablecido", f"{user.username}: se quitó la verificación en dos pasos")
+                db.session.commit()
+                flash("Se quitó la verificación en dos pasos. El usuario podrá activarla de nuevo.", "ok")
+
         elif action == "unlock":
             user.failed_logins = 0
             user.locked_until = None
@@ -140,6 +156,85 @@ def audit_log():
     q = AuditLog.query
     if action:
         q = q.filter(AuditLog.action == action)
-    page = q.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).paginate(per_page=50, error_out=False)
+    page = q.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).paginate(per_page=25, error_out=False)
     actions = [a for (a,) in db.session.query(AuditLog.action).distinct().order_by(AuditLog.action)]
     return render_template("admin/audit.html", page=page, action=action, actions=actions)
+
+
+@bp.route("/empresa", methods=["GET", "POST"])
+@roles_required("admin")
+def company():
+    if request.method == "POST" and request.form.get("action") == "telegram_test":
+        ok, msg = alerts.send_telegram("✅ Prueba de CiberGuard: las alertas por Telegram funcionan.")
+        flash(msg, "ok" if ok else "err")
+        return redirect(url_for("admin.company"))
+    if request.method == "POST":
+        values, errors = {}, []
+        values["company_name"] = request.form.get("company_name", "").strip()[:80]
+        for sev in SEVERITIES:
+            raw = request.form.get(f"sla_{sev}", "")
+            if not raw.isdigit() or not 1 <= int(raw) <= 720:
+                errors.append(f"El plazo para severidad {SEVERITIES[sev].lower()} debe ser un número de horas entre 1 y 720.")
+            else:
+                values[f"sla_{sev}"] = raw
+        if not (values.get("sla_alta", "0").isdigit() and values.get("sla_media", "0").isdigit()
+                and int(values.get("sla_alta", 0)) <= int(values.get("sla_media", 0)) <= int(values.get("sla_baja", 10**6))):
+            errors.append("Los plazos deben ir de menor a mayor: alta ≤ media ≤ baja.")
+        share = request.form.get("incident_share", "")
+        if not share.isdigit() or not 0 <= int(share) <= 100:
+            errors.append("El peso del riesgo por incidentes debe estar entre 0 y 100.")
+        else:
+            values["incident_share"] = share
+        extra, bad = [], []
+        for line in request.form.get("extra_holidays", "").split():
+            try:
+                extra.append(date.fromisoformat(line.strip()).isoformat())
+            except ValueError:
+                bad.append(line)
+        if bad:
+            errors.append("Fechas no válidas en festivos adicionales: " + ", ".join(bad[:3]) + ". Usa el formato AAAA-MM-DD.")
+        values["extra_holidays"] = "\n".join(sorted(set(extra)))
+        values["telegram_chat"] = request.form.get("telegram_chat", "").strip()[:40]
+        token = request.form.get("telegram_token", "").strip()
+        if token and token != "********":
+            values["telegram_token"] = token[:120]
+        elif request.form.get("telegram_clear"):
+            values["telegram_token"] = ""
+        logo = request.files.get("logo")
+        if logo and logo.filename:
+            data = logo.read(512 * 1024 + 1)
+            kind = uploads.detect(data[:8])
+            if len(data) > 512 * 1024 or kind not in ("png", "jpg"):
+                errors.append("El logo debe ser PNG o JPG de máximo 512 KB.")
+            else:
+                name = "logo." + kind
+                with open(os.path.join(uploads.upload_dir(), name), "wb") as out:
+                    out.write(data)
+                values["logo"] = name
+        if request.form.get("logo_clear"):
+            values["logo"] = ""
+        if errors:
+            for e in errors:
+                flash(e, "err")
+        else:
+            settings.set_many(values)
+            audit("empresa_configurada", "Configuración de la empresa actualizada")
+            db.session.commit()
+            flash("Configuración guardada.", "ok")
+            return redirect(url_for("admin.company"))
+    year = date.today().year
+    return render_template(
+        "admin/company.html", s=settings.all_settings(), sla=settings.sla_hours(),
+        holidays=[h for y in (year, year + 1) for h in holidays.colombia(y)],
+        telegram_ready=alerts.telegram_configured(),
+    )
+
+
+@bp.route("/logo")
+@login_required
+def logo():
+    name = settings.get("logo")
+    path = os.path.join(uploads.upload_dir(), name) if name else ""
+    if not name or not os.path.exists(path):
+        abort(404)
+    return send_file(path, max_age=300)
